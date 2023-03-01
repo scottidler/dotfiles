@@ -1,0 +1,36 @@
+# vim: filetype=sh
+
+if [ -n "$DEBUG" ]; then
+    PS4=':${LINENO}+'
+    set -x
+fi
+
+export GPG_TTY=$(tty)
+export PYENV_ROOT=$HOME/.pyenv
+export PATH="$PYENV_ROOT/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+
+# make sure ~/bin is first in the path
+PATH=$HOME/bin:/home/$USER/go/bin:$(echo -n $PATH | sed -e "s|:/home/$USER/bin:|:|g")
+
+export LESS=-Xr
+
+export OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+export ARCH=$(uname -m)
+
+export AWS_VAULT_BACKEND=secret-service
+export ANSIBLE_NOCOWS=1
+#export GOROOT=~/go
+export GOPATH=~/go
+
+export term_pane=0,0,0,1792,2100
+export slack_pane=0,1792,1400,1024,700
+export spotify_pane=0,2816,1400,1024,700
+export home_pane=0,1792,0,1024,1400
+export work_pane=0,2816,0,1024,1400
+
+export PATH="/usr/local/opt/postgresql@9.6/bin:$PATH"
+
+if [ -d ~/.shell-exports.d/ ]; then
+    for f in ~/.shell-exports.d/*; do . $f; done
+fi

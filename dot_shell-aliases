@@ -1,0 +1,51 @@
+# vim: filetype=sh
+
+if [ -n "$DEBUG" ]; then
+    PS4=':${LINENO}+'
+    set -x
+fi
+
+# global aliases, zsh only
+if [[ "$SHELL" == *"zsh" ]]; then
+    # disable annoying oh-my-zsh aliases
+    disable -a \...
+    disable -a \....
+    disable -a \.....
+    disable -a \......
+    disable -a \1
+    disable -a \2
+    disable -a \3
+    disable -a \4
+    disable -a \5
+    disable -a \6
+    disable -a \7
+    disable -a \8
+    disable -a \9
+fi
+
+# enable color support of ls and also add handy aliases
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    #alias dir="dir --color=auto"
+    #alias vdir="vdir --color=auto"
+
+    #alias ls='ls --color=auto #no-expand'
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# colored GCC warnings and errors
+#export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+
+# some more ls aliases
+#alias lah="ls-stat -lah --color=always"
+#alias ltr="ls-stat -ltr --color=always"
+#alias ll="ls-stat -alF --color=always"
+#alias la="ls-stat -A --color=always"
+#alias l="ls-stat -CF --color=always"
+
+
+if [ -d ~/.shell-aliases.d/ ]; then
+    for f in ~/.shell-aliases.d/*; do . $f; done
+fi

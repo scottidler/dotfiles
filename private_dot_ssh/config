@@ -1,0 +1,38 @@
+ServerAliveInterval 55
+
+Host desk.lan
+    HostName desk.lan
+
+Host github.com-home
+    HostName github.com
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/identities/home/id_ed25519
+    IdentitiesOnly yes
+    User git
+
+Host github.com-work
+    HostName github.com
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/identities/work/id_ed25519
+    IdentitiesOnly yes
+    User git
+
+Host github.com-wohl-nanw
+    HostName github.com
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/identities/wohl-nanw/id_ed25519
+    IdentitiesOnly yes
+    User git
+
+Host github.com
+    HostName github.com
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/identities/home/id_ed25519
+    IdentitiesOnly yes
+    User git
+
+Host *.lan *.wan *.localdomain
+    IdentityFile ~/.ssh/identities/home/id_ed25519
+    ForwardAgent yes
+    ForwardX11 yes
+    User saidler

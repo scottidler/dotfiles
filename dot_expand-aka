@@ -1,0 +1,40 @@
+#!/bin/zsh
+
+expand-aka-space() {
+    if [ -n "$EXPAND_AKA" ]; then
+        OUTPUT=$(aka query "$BUFFER")
+        RC=$?
+        if [ $RC -ne 0 ]; then
+            echo "RC=$RC"
+        fi
+        if [ -n "$OUTPUT" ]; then
+            BUFFER="$OUTPUT"
+            CURSOR=$(expr length "$BUFFER")
+        else
+            zle self-insert
+        fi
+    fi
+}
+
+expand-aka-accept-line() {
+    if [ -n "$EXPAND_AKA" ]; then
+        OUTPUT=$(aka --eol query "$BUFFER")
+        RC=$?
+        if [ $RC -ne 0 ]; then
+            echo "RC=$RC"
+        fi
+        if [ -n "$OUTPUT" ]; then
+            BUFFER="$OUTPUT"
+            CURSOR=$(expr length "$BUFFER")
+        fi
+        zle .accept-line
+    fi
+}
+
+if [ -n "$EXPAND_AKA" ]; then
+    zle -N expand-aka-space
+    zle -N accept-line expand-aka-accept-line
+
+    bindkey " " expand-aka-space
+    bindkey -M isearch " " magic-space
+fi

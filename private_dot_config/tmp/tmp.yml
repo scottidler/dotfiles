@@ -1,0 +1,347 @@
+kinds:
+    sh-header:
+        chmod: 775
+        suffix: sh
+        content: |
+            {sh-header}
+
+    bash-header:
+        chmod: 775
+        suffix: sh
+        content: |
+            {bash-header}
+
+    py2:
+        chmod: 664
+        suffix: py
+        content: |
+            {py2-header}
+
+    py3:
+        chmod: 664
+        suffix: py
+        content: |
+            {py3-header}
+
+    py3-mpl2:
+        chmod: 664
+        suffix: py
+        content: |
+            {py3-header}
+            {mpl2-header}
+
+    py:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            {py-common}
+            def main(args):
+                print(args)
+
+            {py-footer}
+
+    sh:
+        chmod: 775
+        suffix: sh
+        content: |
+            {sh-header}
+            {shell-debug}
+            {shell-common}
+
+    zsh:
+        chmod: 775
+        suffix: sh
+        content: |
+            {zsh-header}
+            {shell-debug}
+            {shell-common}
+
+    cfg:
+        chmod: 664
+        suffix: cfg
+        content: |
+            {cfg-ini}
+
+    ini:
+        chmod: 664
+        suffix: ini
+        content: |
+            {cfg-ini}
+
+    bash:
+        chmod: 775
+        suffix: sh
+        content: |
+            {bash-header}
+            {shell-debug}
+            {shell-common}
+
+    yaml:
+        chmod: 664
+        suffix: yml
+        content: |
+            first-name: scott
+            last-name: idler
+            age: 47
+
+    docopt:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            """Naval Fate.
+
+            Usage:
+              naval_fate.py ship new <name>...
+              naval_fate.py ship <name> move <x> <y> [--speed=<kn>]
+              naval_fate.py ship shoot <x> <y>
+              naval_fate.py mine (set|remove) <x> <y> [--moored | --drifting]
+              naval_fate.py (-h | --help)
+              naval_fate.py --version
+
+            Options:
+              -h --help     Show this screen.
+              --version     Show version.
+              --speed=<kn>  Speed in knots [default: 10].
+              --moored      Moored (anchored) mine.
+              --drifting    Drifting mine.
+
+            """
+            from docopt import docopt
+
+            def main(args):
+                arguments = docopt(__doc__, version='Naval Fate 2.0')
+                print(arguments)
+
+            {py-footer}
+
+    argh:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            {py-common}
+            import argh
+
+            def echo(text):
+                '''Returns given word as is.'''
+                return text
+
+            def greet(name, greeting='Hello'):
+                '''Greets the user with given name. The greeting is customizable.'''
+                return greeting + ', ' + name
+
+            parser = argh.ArghParser()
+            parser.add_commands([echo, greet])
+            if __name__ == '__main__':
+                parser.dispatch()
+
+    ap:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            {py-common}
+            from argparse import ArgumentParser
+
+            def main(args):
+                parser = ArgumentParser()
+                parser.add_argument(
+                    '-C', '--config',
+                    default=[
+                        '~/.config/'+REAL_NAME+'/'+REAL_NAME+'.cfg',
+                        REAL_PATH+'/'+REAL_NAME+'.cfg',
+                    ],
+                    help='default=%(default)s; specify the config path')
+                parser.add_argument(
+                    '--opt1',
+                    default='opt1_val',
+                    help='help for optional argument 1')
+                parser.add_argument(
+                    'pos1',
+                    help='help for positional argument 1')
+
+                ns = parser.parse_args()
+                print(ns)
+
+            {py-footer}
+
+    ap-yaml:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            {py-common}
+            NAME, EXT = os.path.splitext(REAL_NAME)
+
+            from ruamel import yaml
+            from argparse import ArgumentParser, RawDescriptionHelpFormatter
+
+            def main(args=None):
+                parser = ArgumentParser(
+                    description=__doc__,
+                    formatter_class=RawDescriptionHelpFormatter,
+                    add_help=False)
+                parser.add_argument(
+                    '--config',
+                    metavar='FILEPATH',
+                    default='~/.config/%(NAME)s/%(NAME)s.yml' % globals(),
+                    help='default="%(default)s"; config filepath')
+                ns, rem = parser.parse_known_args(args)
+                try:
+                    config = dict([
+                        (k.replace('-', '_'), v)
+                        for k, v
+                        in yaml.safe_load(open(os.path.expanduser(ns.config))).items()
+                    ])
+                except FileNotFoundError as er:
+                    config = dict()
+                parser = ArgumentParser(
+                    parents=[parser])
+                parser.set_defaults(**config)
+                parser.add_argument(
+                    '--first-name',
+                    help='default="%(default)s"; first name')
+                parser.add_argument(
+                    '--last-name',
+                    help='default="%(default)s"; last name')
+                parser.add_argument(
+                    '--age',
+                    help='default="%(default)s"; age')
+                ns = parser.parse_args(rem)
+                print(ns)
+
+            {py-footer}
+
+    argh-yaml:
+        chmod: 775
+        suffix: py
+        content: |
+            {py3-header}
+            {py-common}
+            NAME, EXT = os.path.splitext(REAL_NAME)
+
+            from ruamel import yaml
+            from argh import ArghParser
+            from argparse import RawDescriptionHelpFormatter
+
+            def echo(text):
+                '''Returns given word as is.'''
+                return text
+
+            def greet(first_name, last_name, age, greeting='Hello'):
+                '''Greets the user with given name. The greeting is customizable.'''
+                return greeting + ', ' + first_name + ' ' + last_name + '. You are old, ' + age
+
+            def main(args=None):
+                parser = ArghParser(
+                    description=__doc__,
+                    formatter_class=RawDescriptionHelpFormatter,
+                    add_help=False)
+                parser.add_argument(
+                    '--config',
+                    metavar='FILEPATH',
+                    default='~/.config/%(NAME)s/%(NAME)s.yml' % globals(),
+                    help='default="%(default)s"; config filepath')
+                ns, rem = parser.parse_known_args(args)
+                try:
+                    config = dict([
+                        (k.replace('-', '_'), v)
+                        for k, v
+                        in yaml.safe_load(open(ns.config)).items()
+                    ])
+                except FileNotFoundError as er:
+                    config = dict()
+                parser = ArghParser(
+                    parents=[parser])
+                parser.set_defaults(**config)
+                parser.add_commands([echo, greet])
+                parser.dispatch()
+
+            {py-footer}
+
+templates:
+    mpl2-header: |
+        # This Source Code Form is subject to the terms of the Mozilla Public
+        # License, v. 2.0. If a copy of the MPL was not distributed with this
+        # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+    py2-header: |
+        #!/usr/bin/env python2
+
+    py3-header: |
+        #!/usr/bin/env python3
+
+    sh-header: |
+        #!/bin/sh
+
+    zsh-header: |
+        #!/bin/zsh
+
+    bash-header: |
+        #!/bin/bash
+
+    shell-debug: |
+        if [ -n "$DEBUG" ]; then
+            PS4=':${LINENO}+'
+            set -x
+        fi
+
+    cfg-ini: |
+        [person]
+        name: Ripley
+        age: 43
+    shell-common: |
+        REAL_FILE="$0"
+        REAL_NAME="$(basename "$REAL_FILE")"
+        REAL_PATH="$(dirname "$REAL_FILE")"
+        if [ -L "$0" ]; then
+            LINK_FILE=$REAL_FILE; REAL_FILE="$(readlink "$0")"
+            LINK_NAME=$REAL_NAME; REAL_NAME="$(basename "$REAL_FILE")"
+            LINK_PATH=$REAL_PATH; REAL_PATH="$(dirname "$REAL_FILE")"
+        fi
+        if [ -n "$VERBOSE" ]; then
+            echo "REAL_FILE=$REAL_FILE"
+            echo "REAL_NAME=$REAL_NAME"
+            echo "REAL_PATH=$REAL_PATH"
+            if [ -L "$0" ]; then
+                echo "LINK_FILE=$LINK_FILE"
+                echo "LINK_NAME=$LINK_NAME"
+                echo "LINK_PATH=$LINK_PATH"
+            fi
+        fi
+
+        # split string based on delimiter in shell https://stackoverflow.com/a/15988793
+        # ${VAR#*SUB}  # will drop begin of string up to first occur of `SUB`
+        # ${VAR##*SUB} # will drop begin of string up to last occur of `SUB`
+        # ${VAR%SUB*}  # will drop part of string from last occur of `SUB` to the end
+        # ${VAR%%SUB*} # will drop part of string from first occur of `SUB` to the end
+
+        echo "name: $0"
+        echo "args: $@"
+
+    py-common: |
+        import os
+        import re
+        import sys
+        sys.dont_write_bytecode = True
+
+        DIR = os.path.abspath(os.path.dirname(__file__))
+        CWD = os.path.abspath(os.getcwd())
+        REL = os.path.relpath(DIR, CWD)
+
+        REAL_FILE = os.path.abspath(__file__)
+        REAL_NAME = os.path.basename(REAL_FILE)
+        REAL_PATH = os.path.dirname(REAL_FILE)
+        if os.path.islink(__file__):
+            LINK_FILE = REAL_FILE; REAL_FILE = os.path.abspath(os.readlink(__file__))
+            LINK_NAME = REAL_NAME; REAL_NAME = os.path.basename(REAL_FILE)
+            LINK_PATH = REAL_PATH; REAL_PATH = os.path.dirname(REAL_FILE)
+
+        print('name: ', __file__)
+        print('args: ', ' '.join(sys.argv[1:]))
+
+    py-footer: |
+        if __name__ == '__main__':
+            main(sys.argv[1:])
+

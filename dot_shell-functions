@@ -1,0 +1,18 @@
+# vim: filetype=sh
+
+if [ -n "$DEBUG" ]; then
+    PS4=':${LINENO}+'
+    set -x
+fi
+
+function dots() {
+    cd ~/...; pwd; git pull
+    for reponame in $(~/bin/ls-git-repos repos); do
+        (cd repos/$reponame && pwd && git pull)
+    done
+    . ~/.zshrc
+}
+
+if [ -d ~/.shell-functions.d/ ]; then
+    for f in ~/.shell-functions.d/*; do . $f; done
+fi

@@ -1,0 +1,26 @@
+VERBOSITY = LOG_INFO
+
+SSH_ADD_DEFAULT_OPTIONS = "-t 32400"
+
+MATCH_PATH = [
+  # (dir-pattern, identity),
+    (r"nubis", "work"),
+    (r"allizom", "work"),
+    (r"mozilla", "work"),
+]
+
+MATCH_ARGV = [
+  # (r"argv-pattern, identity),
+    (r"nubis", "work"),
+    (r"allizom", "work"),
+    (r"mozilla", "work"),
+    (r"phx1", "work"),
+    (r"scl3", "work"),
+    (r".lan", "home"),
+    (r"scottidler", "home"),
+    (r"45.33.26.141", "home"),
+]
+
+DEFAULT_IDENTITY = "home"
+
+PATTERN_KEYS = ".*"

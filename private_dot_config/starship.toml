@@ -1,0 +1,9 @@
+
+
+format = """$directory$all$character"""
+
+[directory]
+truncation_length = 0
+truncate_to_repo = false
+# style = "yellow"
+format = "[$path]($style)[$read_only]($read_only_style) "

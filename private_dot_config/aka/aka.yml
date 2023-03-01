@@ -1,0 +1,399 @@
+aliases:
+
+
+  pp: prepend $1 $2
+  pp-rust: prepend "#\![allow(unused_imports, unused_variables, unused_mut, dead_code)]" $1
+
+  ss: starship
+
+  cl: clear
+
+  pm: pulsemixer
+
+  fd: fdfind
+
+  lgr: ls-git-repos
+  lghr: ls-github-repos
+
+  ttv:
+    value: tatari-tv
+    global: true
+
+  ping-google: ping 142.251.33.110
+  ping-google-v6: ping 2607:f8b0:400a:80b::200e
+
+  # globals
+  '|b':
+    value: '| bash'
+    global: true
+  '|g':
+    value: '| grep'
+    global: true
+  '|wc':
+    value: '| wc -l'
+    global: true
+  '|l':
+    value: '| less -r'
+    global: true
+  '|h':
+    value: '| head -10'
+    global: true
+  '|t':
+    value: '| tail -10'
+    global: true
+  '|b64':
+    value: '| base64'
+    global: true
+  '|b64d':
+    value: '| base64 -d'
+    global: true
+  '|x':
+    value: "| xargs -I% bash -c 'echo %; tab2 '"
+    global: true
+  e2o:
+    value: '2>&1'
+    global: true
+  tee2files:
+    value: '> >(tee -a stdout.log) 2> >(tee -a stderr.log >&2)'
+    global: true
+  rbt:
+    value: RUST_BACKTRACE=1
+    global: true
+
+  # ls
+  lah: exa -lah --git
+  ltr: exa -lr -sold
+  ll: exa -alF
+  la: exa -la
+  ls: exa
+
+  # search (ripgrep)
+  /: rg
+  //: rg --hidden
+
+  # cd to common directories
+  docs: cd ~/Documents
+  down: cd ~/Downloads
+  cd-tmp: cd ~/tmp
+  cd-repos: cd ~/repos/
+  cd-aka: cd ~/repos/scottidler/aka
+  cd-otto: cd ~/repos/scottidler/otto/
+  cd-philo: cd ~/repos/tatari-tv/philo/
+  cd-philo-fe: cd ~/repos/tatari-tv/philo-fe/
+  cd-github-setup: cd ~/repos/tatari-tv/github-setup/
+  cd-leatherman: cd ~/repos/scottidler/leatherman/
+  cd-rfc: cd ~/repos/tatari-tv/rfc
+
+  cp-cd: mkdir -p $2 && cp $1 $2 && cd $(toplevel $2)
+  mv-cd: mkdir -p $2 && mv $1 $2 && cd $(toplevel $2)
+  mkdir-cd: mkdir -p $1 && cd $1
+
+  T: tree -a -I '.*|__*|tf|venv|target|incremental'
+  TA: tree -a
+
+  # curl
+  clh:
+    value: 'curl localhost:'
+    space: false
+
+  json2yaml: 'curl -sF \"json=@-\" https://x2y.rocks/yaml'
+  yaml2json: 'curl -sF \"yaml=@-\" https://x2y.rocks/json'
+
+  headers-only: curl -sSL -D - $1 -o /dev/null
+  curl-follow: curl $1 -gkLs -o /dev/null -v 2>&1|grep -e '^< HTTP' -e '[L|l]ocation:'
+  url-effective: curl -Ls -o /dev/null -w %{url_effective} $1
+
+  # ssh
+  home: ssh desk.lan
+  work: ssh ltl-3587.lan
+
+  xps: ssh saidler@xps.lan
+
+  # chown
+  mine: sudo chown -R $USER:$USER
+  yours: sudo chown -R root:root
+  ours: sudo chmod -R 777
+
+  pa: pulseaudio
+  pe: pyenv
+  Pe: pipenv
+
+  nv: nordvpn
+  nvl: nordvpn login
+  nvc: nordvpn connect
+  nvd: nordvpn disconnect
+  nvs: nordvpn status
+
+  wiki: wiki-tui "$@"
+
+  mi: mediainfo
+
+  cm: chezmoi
+  cma: chezmoi add --follow
+
+  # clipboard
+  clipboard: xclip -sel clip
+  pb-copy:
+    value: xclip -sel clip
+    global: true
+  pb-paste: xclip -sel clip -o
+
+  ip-lan: 'ip addr show |grep "inet " |grep -v 127.0.0.1 |head -1 |cut -d" " -f6 |cut -d/ -f1'
+  ip-pub: curl ifconfig.me
+
+  # cargo (rust)
+  cI: cargo init
+  ci: cargo install
+  cil: cargo install --list
+  cin: cargo info
+  cf: cargo fmt
+  cc: cargo clippy
+  ccf: cargo clippy --fix -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used
+  cfc: cargo fmt && cargo clippy
+  cb: cargo build
+  cbr: cargo build --release
+  ct: cargo test
+  cr: cargo run -q --
+  crh: cargo run -q -- --help
+  cs: cargo search
+  cdndo: cargo doc --no-deps --open
+  R: rustc
+
+  new-rust: cargo init $1; cd $1; vim src/main.rs Cargo.toml
+
+  # python
+  ipy: ipython
+  pip-search: pip_search
+  rmpyc: 'find . -name "*.pyc" -print0 | xargs -0 /bin/rm'
+
+  # pip
+  pip3: python3 -m pip
+  pip3-ii: python3 -m pip install -U --ignore-installed
+  spip3: sudo -H python3 -m pip
+  spip3-ii: sudo -H python3 -m pip install -U --ignore-installed
+
+  pip3.7: sudo -H python3.7 -m pip
+  pip3.7-ii: sudo -H python3.7 -m pip install -U --ignore-installed
+  pip3.8: sudo -H python3.8 -m pip
+  pip3.8-ii: sudo -H python3.8 -m pip install -U --ignore-installed
+
+  # git
+  g: git
+  ga: git add
+  gb: git branch
+  gm: git merge
+  gc:
+    value: 'git commit -m"'
+    space: false
+  gcf: git cat-file -p
+  gd: git diff
+  gD: git describe
+  gdm: git diff main
+  gp: git pull
+  gP: git push
+  gpo: 'git push -u origin $(git symbolic-ref --short -q HEAD)'
+  gs: git status --short
+  gbc: git branch --contains
+  gco: git checkout
+  gcob: git checkout -b
+  gcd: git checkout develop
+  grp: git rev-parse
+  gsh: git show
+  gsn: 'git show --notes=*'
+  gpP: 'gp && gP'
+  gbmm: git branch --merged main
+  gbnmm: git branch --no-merged main
+  grh: git reset --hard
+  grhh: git reset --hard HEAD
+  grph: git rev-parse HEAD
+  gfbn: git fetch origin +refs/notes/buildno/:refs/notes/buildno
+  gfofu: git fetch origin -f -u +refs/heads/*:refs/heads/*
+  grloa: git rev-list --objects --all
+  grm: git rebase main
+  grim: git rebase -i main
+  tags: git tag -l
+  gl: git log -$1
+  reporoot: git rev-parse --show-toplevel
+  refresh: REPONAME=$(reponame); cd ~/repos; rmrf $REPONAME; clone $REPONAME
+  branch: git rev-parse --abbrev-ref HEAD
+  nearest-tag: git describe --abbrev=0
+  merged: git branch -r --sort=committerdate --merged
+  no-merged: git branch -r --sort=committerdate --no-merged
+  remote-origin-url: git config --get remote.origin.url
+  ls-not-git: git ls-files . --ignored --exclude-standard --others
+  ls-remote: git ls-remote
+  ls-remote-heads: git ls-remote | grep refs/heads/
+  ls-remote-branch: 'git ls-remote | grep refs/heads/$(git rev-parse --abbrev-ref HEAD)'
+  ls-remote-tag: 'git ls-remote | grep refs/tags/$(git describe --abbrev=0)'
+  ls-remote-tags: git ls-remote | grep refs/tags/
+  not-on-main: git branch --no-merged main
+  set-upstream: 'git branch --set-upstream-to=origin/$(git rev-parse --abbrev-ref HEAD) $(git rev-parse --abbrev-ref HEAD)'
+  prune: git remote prune origin
+  unstage: git reset HEAD
+  clean: git clean -xfd
+  describe: 'git describe --match "v*" --abbrev=7'
+  rm-tag: git tag -d $1; git push origin :$1
+  db: delete-branch
+
+  gh-title: gh pr create --title "$(git symbolic-ref --short HEAD | awk -v FS='/' -v OFS='/' '{ gsub(/-/," ",$2) } { print }' | tr '/' ' ')" --reviewer tatari-tv/SRE; gh pr view --web
+  av: aws-vault exec -d 12h tatari --
+
+  e2d: date -d @$1
+
+  repl: evcxr
+
+  authors: git shortlog -s -n --all --no-merges
+  gbp: git-big-picture
+
+  afields: awk -v N=$1 '{sep=""; for (i=N; i<=NF; i++) {printf("%s%s",sep,$i); sep=OFS}; printf("\n")}'
+
+  gsm: git submodule
+  gsmu: gsm update
+  gsmur: gsm update --remote
+  gsmui: 'gsm update --jobs=$((3 * $(nproc))) --init --recursive'
+
+  cdr: '$(git rev-parse) && cd $(git rev-parse --show-toplevel)'
+  cdpr: '$(git rev-parse) && {cd ../; cd $(git rev-parse --show-toplevel)}'
+  cdp: '$(git rev-parse) && cd $(git rev-parse --show-toplevel) && cd ../'
+
+  # docker
+  d: docker
+  dc: docker-compose
+  dI: docker inspect
+  di: 'docker images | (read -r; printf "%s\n" "$REPLY"; sort)'
+  dps: 'docker ps | (read -r; printf "%s\n" "$REPLY"; sort)'
+  dpsa: 'docker ps -a | (read -r; printf "%s\n" "$REPLY"; sort)'
+  dpsaq: docker ps -aq
+  drm: docker rm
+  drmi: docker rmi
+  drit: docker run -it
+  deit: docker exec -it
+  ls-dangling-images: docker images -q --filter "dangling=true"
+  rm-stopped-containers: 'docker rm $(docker ps -q -f "status=exited")'
+  rm-dangling-images: 'docker rmi $(docker images -q --filter "dangling=true")'
+
+  # kubectl (k8s)
+  context: kubectl config current-context
+  contexts: kubectl config get-contexts
+  staging-context: aws eks --region us-west-2 update-kubeconfig --name staging --role-arn arn:aws:iam::878256633362:role/eks-staging-admin
+  prod-context: aws eks --region us-east-1 update-kubeconfig --name prod --role-arn arn:aws:iam::878256633362:role/eks-prod-admin
+  test-context: aws eks --region us-west-2 update-kubeconfig --name test --role-arn arn:aws:iam::878256633362:role/eks-test-admin
+  dev-context: aws eks --region us-west-2 update-kubeconfig --name dev --role-arn arn:aws:iam::878256633362:role/eks-dev-admin
+
+  k: kubectl
+  ka: kubectl apply -f
+  kg: kubectl get
+  kga: kubectl get all
+  kgA: kubectl get all,cert,order,secret,ingress,hr
+  kgC: kubectl get crd
+  kgp: kubectl get pod
+  kgs: kubectl get svc
+  kgS: kubectl get secret
+  kgd: kubectl get deployment
+  kgc: kubectl get certificate
+  kgh: kubectl get helmrelease
+  kgn: kubectl get namespace
+  kgN: kubectl get networkpolicy
+  kgv: kubectl get ingress.voyager.appscode.com
+  kd: kubectl describe
+  kdC: kubectl describe crd
+  kdp: kubectl describe pod
+  kds: kubectl describe svc
+  kdS: kubectl describe secret
+  kdd: kubectl describe deployment
+  kdc: kubectl describe certificate
+  kdv: kubectl describe ingress.voyager.appscode.com
+  kD: kubectl delete
+  kDC: kubectl delete crd
+  kDp: kubectl delete pod
+  kDs: kubectl delete svc
+  kDS: kubectl delete secret
+  kDd: kubectl delete deployment
+  kDn: kubectl delete namespace
+  kv: kubectl version
+  kl: kubectl logs
+  ns:
+    value: --namespace
+    global: true
+  oy:
+    value: -o -yaml
+    global: true
+
+  # terraform
+  tf: terraform
+  tfp: terraform plan
+  tfa: terraform apply
+  tf-fmt: terraform fmt -write=true -diff=true -recursive
+
+  tfpt-gh: terraform plan --target 'github_repository.repos["$1"]'
+
+  tfv: tfvar
+
+  # vault
+  v: vault
+  ve: vault exec
+  vl: vault login
+
+  pyt: pytest .
+
+  yml-lint: yq -i . $1
+
+  # aws
+  aws-id: 'aws sts get-caller-identity | jq -r .Account'
+
+  # flatpak
+  fp: flatpak
+  fpi: flatpak install
+  fps: flatpak search
+  fpu: flatpak update
+
+  # traceroute
+  tr: traceroute
+
+  # papertrail
+  pt: papertrail
+
+  jc: journalctl
+  sc: systemctl
+
+  # edit, re-evals
+  akas: vim ~/.config/aka/aka.yml; . ~/.zshrc
+  bashrc: vim ~/.bashrc; . ~/.bashrc
+  zshrc: vim ~/.zshrc; . ~/.zshrc
+  aliases: vim ~/.shell-aliases; . ~/.zshrc
+  exports: vim ~/.shell-exports; . ~/.zshrc
+  functions: vim ~/.shell-functions; . ~/.zshrc
+
+  # update reboot|shutdown
+  ureboot: 'update && reboot'
+  ushutdown: 'update && shutdown'
+
+  #which combos
+  cat-which: 'WHICHD=(); for ARG in $(echo "$@"); do WHICHD+=("$(which $ARG)") done; bat "${WHICHD[@]}"'
+  vim-which: 'WHICHD=(); for ARG in $(echo "$@"); do WHICHD+=("$(which $ARG)") done; vim "${WHICHD[@]}"'
+  printr:
+    value: print -r -- =$1
+    space: false
+
+  # one-offs
+  cat: bat -p
+  os: 'echo "$(lsb_release -is)-$(lsb_release -rs)_x$(getconf LONG_BIT)($(lsb_release -cs))"'
+  ds: dig +short
+  psgrep: 'ps aux | grep -v grep | grep'
+  awsenv: 'env | grep AWS_'
+  xdo: xdotool
+  fix-dns: sudo systemd-resolve --flush-caches
+  tarlist: tar ztvf
+  reboot-sound: pulseaudio -k && sudo alsa force-reload
+  ping10:
+    value: ping 10.10.10.
+    space: false
+
+  # corrections
+  suod: sudo
+  soud: sudo
+  svim: sudo vim
+  vmi: vim
+  emacs: vim
+  cd..: cd ..
+  cd../: cd ..
