@@ -174,7 +174,7 @@ aliases:
   dmesg: sudo dmesg
   fix-dns: sudo systemd-resolve --flush-caches
   reboot-sound: pulseaudio -k && sudo alsa force-reload
-  os-info: 'echo "$(lsb_release -is)-$(lsb_release -rs)_x$(getconf LONG_BIT)($(lsb_release -cs))"'
+  os|os-info: 'echo "$(lsb_release -is)-$(lsb_release -rs)_x$(getconf LONG_BIT)($(lsb_release -cs))"'
   hn: hostname
   psgrep: 'ps aux | grep -v grep | grep'
   kernel: uname -sr
