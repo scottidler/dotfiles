@@ -273,7 +273,7 @@ aliases:
   ex: exercism
   pa: pulseaudio
   pm: pulsemixer
-  co: cat .github/CODEOWNERS
+  cO: cat .github/CODEOWNERS
   SS: starship
   xdo: xdotool
   st: speedtest-rs
@@ -420,6 +420,7 @@ aliases:
     global: true
   ls-tatari|ls-ttv: ls-github-repos tatari-tv
   av: aws-vault exec -d 12h prod --
+  avc: UV_INDEX_TATARI_PROD_CODEARTIFACT_PASSWORD=$(aws-vault exec -d 12h prod -- aws codeartifact get-authorization-token --domain tatari-prod --domain-owner 190403256318 --region us-east-1 --query authorizationToken --output text) aws-vault exec -d 12h prod --
   aws-id: '$av aws sts get-caller-identity | jq -r .Account'
   aws-env: 'env | grep AWS_'
   update-ctx|update-context: $av aws eks --region lookup:region[$1] update-kubeconfig --name $1 --alias $1 --role-arn arn:aws:iam::878256633362:role/eks-$1-admin
@@ -450,8 +451,21 @@ aliases:
   bump2: cargo release patch --execute --no-publish
 
   # ========================================
+  # Claude
+  # ========================================
+  c: claude
+  ch: claude --model haiku
+  cs: claude --model sonnet
+  co: claude --model opus
+  co1m|coin: "claude --model 'opus[1m]'"
+
+  # ========================================
   # DOCKER
   # ========================================
+
+  jina:
+    value: curl https://r.jina.ai/$1
+    space: false
 
   d: docker
   dc: docker-compose
@@ -564,6 +578,11 @@ aliases:
   use-ctx|use-context: kubectl config use-context $1
 
   # ========================================
+  # Obsidian Borg
+  # ========================================
+  ob: obsidian-borg
+
+  # ========================================
   # PYTHON
   # ========================================
 
@@ -621,28 +640,4 @@ aliases:
   # spanish pdf extraction - consider moving to a script
   xtract: PDF="$1"; ~/Documents/spanish/cronicas/extract.py $PDF; bat "${PDF%.pdf}.yml"
 
-  # ========================================
-  # PAIS (Personal AI System)
-  # ========================================
-
-  # Session launchers (like Daniel's 'kai')
-  p: pais session                       # Minimal session (no MCPs)
-  pg: pais session --profile github     # GitHub MCP only
-  ps: pais session --profile slack      # Slack MCP only
-  pw: pais session --profile work       # Full work setup
-  pa: pais session --profile atlassian  # Atlassian MCP only
-  pall: pais session --profile all      # Everything
-
-  pc: pais session -- --continue                        # Minimal session (no MCPs)
-  pcg: pais session --profile github -- --continue      # GitHub MCP only
-  pcs: pais session --profile slack -- --continue       # Slack MCP only
-  pcw: pais session --profile work -- --continue        # Full work setup
-  pca: pais session --profile atlassian -- --continue   # Atlassian MCP only
-  pcall: pais session --profile all -- --continue       # Everything
-
-  # Session with explicit MCPs
-  pm: pais session --mcp              # e.g., pm github,slack
-
-  # Session utilities
-  psl: pais session --list            # List MCPs and profiles
-  psd: pais session --dry-run         # Dry run
+  mit: markitdown-cli
