@@ -11,16 +11,16 @@ transcriber:
   timeout_secs: 120
 
 groq:
-  api_key: "~/.config/groq/groq-obsidian-borg-api-key"
+  api_key: "GROQ_API_KEY"
   model: "whisper-large-v3"
 
 llm:
   provider: "claude"
   model: "claude-sonnet-4-6"
-  api_key: "~/.config/anthropic/anthropic-api-key"
+  api_key: "ANTHROPIC_API_KEY"
 
 telegram:
-  bot_token: "~/.config/telegram/telegram-obsidian-borg-bot-token"
+  bot_token: "TELEGRAM_BOT_TOKEN"
   allowed_chat_ids: [8474692082]
 
 # discord:
