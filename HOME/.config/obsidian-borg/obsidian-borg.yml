@@ -3,37 +3,38 @@ server:
   port: 8181
 
 vault:
-  root_path: "~/repos/scottidler/obsidian/"
-  inbox_path: "~/repos/scottidler/obsidian/📥 Inbox"
+  root_path: ~/repos/scottidler/obsidian/
+  inbox_path: ~/repos/scottidler/obsidian/📥 Inbox
 
 transcriber:
-  url: "http://localhost:8090"
+  url: http://localhost:8090
   timeout_secs: 120
 
 groq:
-  api_key: "GROQ_API_KEY"
-  model: "whisper-large-v3"
+  api_key: GROQ_API_KEY
+  model: whisper-large-v3
 
 llm:
-  provider: "claude"
-  model: "claude-sonnet-4-6"
-  api_key: "ANTHROPIC_API_KEY"
+  provider: claude
+  model: claude-sonnet-4-6
+  api_key: ANTHROPIC_API_KEY
 
 telegram:
-  bot_token: "TELEGRAM_BOT_TOKEN"
+  bot_token: TELEGRAM_BOT_TOKEN
   allowed_chat_ids: [8474692082]
+  host: desk
 
 # discord:
-#   bot_token_env: "DISCORD_BOT_TOKEN"
+#   bot_token_env: DISCORD_BOT_TOKEN
 #   channel_id: 0
 
 fabric:
-  binary: "/home/saidler/go/bin/fabric"
+  binary: /home/saidler/go/bin/fabric
   model: ""
-  summarize_pattern_youtube: "obsidian_note"
-  summarize_pattern_article: "obsidian_note"
-  tag_pattern: "create_tags"
-  classify_pattern: "obsidian_classify"
+  summarize_pattern_youtube: obsidian_note
+  summarize_pattern_article: obsidian_note
+  tag_pattern: create_tags
+  classify_pattern: obsidian_classify
   max_content_chars: 30000
 
 routing:
@@ -42,7 +43,7 @@ routing:
   research_date_subfolder: true
 
 hotkey:
-  host: "desk.lan"
+  host: desk.lan
   port: 8181
   key: "<Ctrl><Shift>b"
 
@@ -58,7 +59,7 @@ canonicalization:
     # Reddit — old.reddit.com → www.reddit.com
     - name: old-reddit
       match: 'https?://old\.reddit\.com/(?P<path>.*)'
-      canonical: "https://www.reddit.com/{path}"
+      canonical: https://www.reddit.com/{path}
 
 # ---------------------------------------------------------------------------
 # Migration
