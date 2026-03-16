@@ -259,6 +259,7 @@ github:
       bin/tab4: ~/bin/tab4
       bin/toggle: ~/bin/toggle
       bin/prepend: ~/bin/prepend
+      bin/probe: ~/bin/probe
       bin/toggle-remote-url: ~/bin/toggle-remote-url
       shell-functions.sh: ~/.shell-functions.d/helpful.sh
   scottidler/dock:
@@ -479,13 +480,13 @@ script:
     wget -q $URL
     sudo apt install ./$DEB && rm ./$DEB
   syncthing: |
-    # Add the release PGP keys:
-    curl -s https://syncthing.net/release-key.txt | sudo apt-key add -
-    # Add the "stable" channel to your APT sources:
-    echo "deb https://apt.syncthing.net/ syncthing stable" | sudo tee /etc/apt/sources.list.d/syncthing.list
-    # Update and install syncthing:
+    sudo mkdir -p /etc/apt/keyrings
+    sudo curl -L -o /etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable" | sudo tee /etc/apt/sources.list.d/syncthing.list
     sudo apt-get update
-    sudo apt-get install syncthing
+    sudo apt-get install -y syncthing
+    systemctl --user enable syncthing.service
+    systemctl --user start syncthing.service
   vim+git: |
     sudo apt-get install -y vim git
     sudo update-alternatives --set editor /usr/bin/vim.basic
