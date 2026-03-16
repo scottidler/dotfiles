@@ -190,4 +190,3 @@ if [[ -n "$ZSH_PROFILE" ]]; then
 fi
 
 [[ "$TERM" == "" ]] && export TERM=xterm-kitty
-. "/home/saidler/.deno/env"
