@@ -3,51 +3,51 @@ server:
   port: 8181
 
 vault:
-  root_path: ~/repos/scottidler/obsidian/
-  inbox_path: ~/repos/scottidler/obsidian/📥 Inbox
+  root-path: ~/repos/scottidler/obsidian/
+  inbox-path: ~/repos/scottidler/obsidian/inbox
+  vault-name: obsidian
 
 transcriber:
   url: http://localhost:8090
-  timeout_secs: 120
+  timeout-secs: 120
 
 groq:
-  api_key: GROQ_API_KEY
+  api-key: GROQ_API_KEY
   model: whisper-large-v3
 
 llm:
   provider: claude
   model: claude-sonnet-4-6
-  api_key: ANTHROPIC_API_KEY
+  api-key: ANTHROPIC_API_KEY
 
 telegram:
-  bot_token: TELEGRAM_BOT_TOKEN
-  allowed_chat_ids: [8474692082]
+  bot-token: TELEGRAM_BOT_TOKEN
+  allowed-chat-ids: [8474692082]
   host: desk
 
 # discord:
-#   bot_token_env: DISCORD_BOT_TOKEN
-#   channel_id: 0
+#   bot-token: DISCORD_BOT_TOKEN
+#   channel-id: 0
 
 fabric:
   binary: /home/saidler/go/bin/fabric
   model: ""
-  summarize_pattern_youtube: obsidian_note
-  summarize_pattern_article: obsidian_note
-  tag_pattern: create_tags
-  classify_pattern: obsidian_classify
-  max_content_chars: 30000
+  summarize-pattern-youtube: obsidian_note
+  summarize-pattern-article: obsidian_note
+  tag-pattern: create_tags
+  classify-pattern: obsidian_classify
+  max-content-chars: 30000
 
 routing:
-  confidence_threshold: 0.6
-  fallback_folder: "📥 Inbox"
-  research_date_subfolder: true
+  confidence-threshold: 0.6
+  fallback-domain: inbox
 
 hotkey:
   host: desk.lan
   port: 8181
   key: "<Ctrl><Shift>b"
 
-debug: false
+log-level: debug
 
 # ---------------------------------------------------------------------------
 # URL Canonicalization
@@ -56,7 +56,7 @@ debug: false
 # share from. Rules with the same `name` as a built-in replace it.
 canonicalization:
   rules:
-    # Reddit — old.reddit.com → www.reddit.com
+    # Reddit - old.reddit.com -> www.reddit.com
     - name: old-reddit
       match: 'https?://old\.reddit\.com/(?P<path>.*)'
       canonical: https://www.reddit.com/{path}
@@ -64,29 +64,33 @@ canonicalization:
 # ---------------------------------------------------------------------------
 # Migration
 # ---------------------------------------------------------------------------
-# Spec for `obsidian-borg migrate`. SINGLE SOURCE OF TRUTH for schema evolution.
+# Spec for `borg migrate`. SINGLE SOURCE OF TRUTH for schema evolution.
 #
 # To evolve the schema in the future:
-#   1. Update field_renames below (add old_name: new_name mappings)
-#   2. Run:  obsidian-borg migrate --dry-run
-#   3. Run:  obsidian-borg migrate --apply
+#   1. Update field-renames below (add old_name: new_name mappings)
+#   2. Run:  borg migrate --dry-run
+#   3. Run:  borg migrate --apply
 #   4. Review: cd ~/repos/scottidler/obsidian && git diff
 #   5. Commit vault changes
 #   6. Update render_note() in markdown.rs for new notes
 #
 migration:
-  field_renames:
+  field-renames:
     url: source
 
-  field_transforms:
+  value-renames:
+    origin:
+      human: authored
+
+  field-transforms:
     source: canonicalize
     type: reclassify
     tags: normalize
 
-  title_fallback: true
-  seed_borg_log: true
+  title-fallback: true
+  seed-borg-log: true
 
-  skip_folders:
-    - "⚙️ System"
-    - "📆 Daily"
-    - "templates"
+  skip-folders:
+    - system
+    - journal
+    - templates

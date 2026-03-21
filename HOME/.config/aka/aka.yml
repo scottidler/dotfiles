@@ -533,6 +533,11 @@ aliases:
   ghpr: gh pr create -t "$(git branch --show-current)" -a "@me"
 
   # ========================================
+  # Jina
+  # ========================================
+  jina: curl https://r.jina.ai/$1
+
+  # ========================================
   # KUBECTL (k8s)
   # ========================================
 
@@ -578,7 +583,7 @@ aliases:
   use-ctx|use-context: kubectl config use-context $1
 
   # ========================================
-  # Obsidian Borg
+  # Obsidian Borg/C
   # ========================================
   ob: obsidian-borg
 
