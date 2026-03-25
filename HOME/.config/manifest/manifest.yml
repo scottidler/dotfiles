@@ -344,10 +344,16 @@ script:
     chmod +x ~/bin/cheat
   disable-ipv6: |
     sudo tee /etc/sysctl.d/99-disable-ipv6.conf <<'EOF'
+    # Disable IPv6 system-wide.
+    # Managed by ~/... dotfiles via manifest - do not edit directly.
+    # Without this, routers advertising IPv6 via RA can inject routes that
+    # NetworkManager tries (and fails) to use for connectivity checks, causing
+    # the WiFi "?" icon even when IPv4 is fully functional.
     net.ipv6.conf.all.disable_ipv6 = 1
     net.ipv6.conf.all.disable_policy = 1
     net.ipv6.conf.default.disable_ipv6 = 1
     net.ipv6.conf.default.disable_policy = 1
+    net.ipv6.conf.wlp2s0.disable_ipv6 = 1
     EOF
     sudo sysctl --load /etc/sysctl.d/99-disable-ipv6.conf
   docker: |
