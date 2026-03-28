@@ -639,6 +639,31 @@ aliases:
   # ONE-OFFS (review periodically)
   # ========================================
 
+  # persona
+  p: persona
+  ph: persona --help
+  pv: persona --version
+  pl: persona login
+  pL: persona logout
+  pa: persona anniversary
+  pw: persona whois
+  pr: persona reports
+  pc: persona chain
+  pt: persona team
+  pT: persona teammates
+  po: persona orgs
+  pd: persona departments
+  pt: persona titles
+  ps: persona search
+  phc: persona headcount
+  pH: persona hired
+  pg: persona github
+  pm: persona manager
+
+
+  # easy access to the obsidian vault
+  vault: cd ~/repos/scottidler/obsidian/
+
   # slack gpg key for apt
   slack-gpg: sudo cp ~/Documents/slack.list /etc/apt/sources.list.d/slack.list
 
