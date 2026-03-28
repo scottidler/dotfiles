@@ -32,11 +32,12 @@ telegram:
 fabric:
   binary: /home/saidler/go/bin/fabric
   model: ""
-  summarize-pattern-youtube: obsidian_note
-  summarize-pattern-article: obsidian_note
+  summarize-pattern-youtube: obsidian-note.md
+  summarize-pattern-article: obsidian-note.md
   tag-pattern: create_tags
-  classify-pattern: obsidian_classify
-  max-content-chars: 30000
+  classify-pattern: obsidian-classify.md
+  condense-pattern: condense.md
+  max-content-chars: 100000
 
 routing:
   confidence-threshold: 0.6
