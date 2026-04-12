@@ -225,7 +225,7 @@ github:
   scottidler/scrabbler:
     cargo:
     - ./
-  scottidler/secrets:
+  scottidler/secrets: {}
   scottidler/slam:
     cargo:
     - ./
