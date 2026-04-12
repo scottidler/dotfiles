@@ -459,6 +459,13 @@ aliases:
   co: claude --model opus
   co1m|coin: "claude --model 'opus[1m]'"
 
+  c-p: claude-permit
+
+  # ========================================
+  # Gemini
+  # ========================================
+  g-pro: gemini --model gemini-3.1-pro-preview
+
   # ========================================
   # DOCKER
   # ========================================
@@ -654,7 +661,7 @@ aliases:
   po: persona orgs
   pd: persona departments
   pt: persona titles
-  ps: persona search
+  pS: persona search
   phc: persona headcount
   pH: persona hired
   pg: persona github
