@@ -6,10 +6,8 @@ if [ -n "$DEBUG" ]; then
 fi
 
 function dots() {
-    cd ~/...; pwd; git pull
-    for reponame in $(~/bin/ls-git-repos repos); do
-        (cd repos/$reponame && pwd && git pull)
-    done
+    local dotfiles=$(dirname $(dirname $(realpath ~/.shell-functions)))
+    cd "$dotfiles"; pwd; git pull
     . ~/.zshrc
 }
 
