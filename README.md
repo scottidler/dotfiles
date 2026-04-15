@@ -1,20 +1,21 @@
-# ... an automation repo that sits in $HOME right next to . and ..
+# dotfiles
 
 ## Automation for setting up my OS
 
-* [HOME/.config/manifest/manifest.yml](./HOME/.config/manifest/manifest.yml) is the main spec file
+* [manifest.yml](./manifest.yml) is the main spec file
 * Driven by `manifest` - a Rust binary from [scottidler/manifest](https://github.com/scottidler/manifest)
 
 ## How it works
 
 The `manifest` tool reads `manifest.yml` and generates valid bash to provision the system: creating symlinks, installing packages, cloning repos, and running scripts. Pipe to bash to execute.
 
-Config discovery:
-1. `~/.config/manifest/manifest.yml` (XDG default, symlinked from this repo)
-2. `./HOME/.config/manifest/manifest.yml` (bootstrap, running from repo root)
-3. `./manifest.yml` (legacy fallback)
+Run from the repo root:
+```
+cd ~/repos/scottidler/dotfiles
+manifest | bash
+```
 
-The repo root is discovered automatically by resolving the config symlink and walking up to find `HOME/`.
+Note: `~/.config/manifest/identity.txt` is an age private key used for decrypting secrets. It is backed up in 1Password and must be restored manually on a new machine.
 
 ### Example: link section
 ```
