@@ -481,6 +481,16 @@ script:
     sudo apt-get update
     # 4. Install Spotify
     sudo apt-get install spotify-client
+  spotify-src: |
+    # Spotify's postinst script has a bug: find_sources() only scans *.list files
+    # (via /etc/apt/sources.list.d/*.list glob) and never checks *.sources (DEB822
+    # format). So when spotify.sources exists but spotify.list does not, every upgrade
+    # sees no Spotify source configured and re-creates spotify.list from scratch -
+    # producing duplicate-source warnings on every apt update. The escape hatch is
+    # documented in the postinst itself: if the file exists (even empty), the
+    # "[ ! -e $DEFAULT_SOURCE ]" check fails and the re-write is skipped. Keeping an
+    # empty spotify.list here prevents the postinst from stomping it on each upgrade.
+    sudo truncate -s0 /etc/apt/sources.list.d/spotify.list
   steam: |
     URL=http://media.steampowered.com/client/installer/steam.deb
     DEB=$(basename $URL)
