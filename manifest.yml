@@ -262,6 +262,8 @@ github:
       bin/prepend: ~/bin/prepend
       bin/probe: ~/bin/probe
       bin/toggle-remote-url: ~/bin/toggle-remote-url
+      bin/env.py: ~/bin/env.py
+      env.sh: ~/.shell-functions.d/env.sh
       shell-functions.sh: ~/.shell-functions.d/helpful.sh
   scottidler/dock:
     link:
