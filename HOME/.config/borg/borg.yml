@@ -51,6 +51,24 @@ hotkey:
 log-level: debug
 
 # ---------------------------------------------------------------------------
+# Staged ingestion pipeline
+# ---------------------------------------------------------------------------
+# See docs/design/2026-04-19-staged-ingestion-pipeline.md in the repo.
+# enabled=true activates Gate-0 (blocklist), Gate-1 (raw block-page detection)
+# and Gate-2 (paraphrase-of-block-page detection) plus stage-0 artifact
+# writes under `root`. double-write=true keeps the legacy publish path live
+# while the staged pipeline records bytes as a side-effect of every fetch.
+staging:
+  enabled: true
+  double-write: true
+  root: ~/.local/share/borg/stages
+  retention-days: 60
+  rejected-retention-days: 90
+  layout: per-trace
+  max-size-gb: 20
+  size-alert-threshold-pct: 80
+
+# ---------------------------------------------------------------------------
 # URL Canonicalization
 # ---------------------------------------------------------------------------
 # Extends built-in defaults. Add custom rules here for sites you frequently
