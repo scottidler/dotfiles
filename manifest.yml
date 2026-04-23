@@ -56,40 +56,175 @@ pkg:
 apt:
   items:
 # - diagrams # awesome diagramming (in python) tool
-  - fuse3
-  - ldap-utils
-  - fonts-powerline
-  - libsmbclient-dev
-  - httpie
-  - pianobar
-  - python3-dev
-  - libffi-dev
-  - libicu-dev
-  - libssl-dev
-  - libffi-dev
-  - libdbus-1-dev
-  - libsnappy-dev
+  - 1password
+  # Jira CLI only - does not support Confluence
+  - acli
+  - amazon-ecr-credential-helper
+  # multi-protocol download utility
+  - aria2
+  # ASCII art text generator
+  - ascii
+  # advanced interactive system monitor
+  - atop
+  # arbitrary precision command-line calculator
+  - bc
+  # YACC-compatible parser generator
+  - bison
+  # meta-package for C/C++ compiler toolchain
   - build-essential
-  - portaudio19-dev
-  - openvpn
+  # terminal image viewer
+  - chafa
+  - clamav
+  - clamav-daemon
+  - cmake
+  # Cursor AI-powered IDE
+  - cursor
+  # track /etc changes in git
+  - etckeeper
+  - ffmpeg
+  # fast lexical analyzer generator
+  - flex
+  # Liberation font family (metrically compatible with Arial/Times/Courier)
+  - fonts-liberation
+  # Noto CJK fonts (Chinese, Japanese, Korean)
+  - fonts-noto-cjk
+  - fonts-noto-color-emoji
+  - fonts-noto-core
+  # Powerline-patched fonts for status bars
+  - fonts-powerline
+  # filesystem in userspace (v3)
+  - fuse3
+  # optimize Linux system performance for gaming
+  - gamemode
+  # GIF image manipulation tool
+  - gifsicle
+  - gimp
+  - git
+  # git branch management GUI
+  - git-butler
+  # syntax-highlighting pager for git diffs
+  - git-delta
+  - gnome-shell-extension-appindicator
+  - gnome-shell-extension-desktop-icons-ng
+  - gnome-shell-extension-manager
+  - gnome-shell-extension-ubuntu-tiling-assistant
+  - gnupg
+  - gnupg2
+  - golang
+  - google-chrome-stable
+  # Charmbracelet tool for building shell script UIs
+  - gum
+  # plain-text double-entry accounting tool
+  - hledger
+  # human-friendly HTTP client (curl alternative with readable output)
+  - httpie
+  # command-line benchmarking tool
+  - hyperfine
+  - imagemagick
+  - ipcalc
+  # SSH/GPG key agent manager that persists across sessions
+  - keychain
+  # GPU-accelerated terminal emulator
+  - kitty
+  - ldap-utils
+  - libcairo2-dev
+  - libclang-dev
+  # ref: https://ubuntuforums.org/showthread.php?t=1269926
+  - libcups2-dev
+  # OpenSSL backend variant - choose this over gnutls builds
+  - libcurl4-openssl-dev
+  - libdbus-1-dev
+  # foreign function interface dev headers
+  - libffi-dev
+  - libgif-dev
+  # GObject introspection dev headers
+  - libgirepository1.0-dev
+  - libglib2.0-dev
+  - libgtk-4-dev
+  # ICU Unicode and globalization dev headers
+  - libicu-dev
+  - libjpeg-dev
+  # ref: https://github.com/mongodb-js/kerberos/issues/45
+  - libkrb5-dev
+  # provides notify-send
+  - libnotify-bin
+  - libpipewire-0.3-dev
+  # libpq = PostgreSQL client library; not obvious from the name
+  - libpq-dev
+  - libreadline-dev
+  - libreoffice
+  - librsync-dev
+  - libsmbclient-dev
+  - libsnappy-dev
+  - libsqlite3-dev
+  - libssl-dev
+  - libxml2-dev
+  - libxmlsec1-dev
+  # neovim plugin dependency
+  - lua5.1
+  # neovim plugin dependency
+  - luarocks
+  # bootable memory tester - runs outside the OS at boot
+  - memtest86+
+  # userspace memory stress tester - runs inside the OS
+  - memtester
   - neovim
   - network-manager-openvpn
   - network-manager-openvpn-gnome
-  - libcurl4-openssl-dev
-  - librsync-dev
-  - libglib2.0-dev
-  - libgirepository1.0-dev
-  - libcairo2-dev
-  - libjpeg-dev
-  - libgif-dev
+  - octarine
+  - openvpn
+  - p7zip-full
+  # universal document converter (markdown, docx, pdf, rst, etc.)
+  - pandoc
+  # GNU parallel job runner
+  - parallel
+  # terminal Pandora radio client
+  - pianobar
+  - pinentry-gnome3
+  - pinentry-tty
+  # install Python CLI tools in isolated environments
+  - pipx
+  # helper tool for finding compiler/linker flags
+  - pkg-config
+  # PDF utilities: pdftotext, pdfinfo, pdfimages, etc.
+  - poppler-utils
+  - portaudio19-dev
   - python3-cairo-dev
-  - libxml2-dev
-  - libxmlsec1-dev
-  - rlwrap
+  - python3-dev
+  - python3.12-venv
   - qbittorrent
-  - libcups2-dev #ref: https://ubuntuforums.org/showthread.php?t=1269926
-  - libkrb5-dev #ref: https://github.com/mongodb-js/kerberos/issues/45
-  - wmctrl #for ./layout script
+  # PipeWire graph/patchbay GUI
+  - qpwgraph
+  # readline wrapper for any REPL or command
+  - rlwrap
+  - slack-desktop
+  # network traffic monitor and visualizer
+  - sniffnet
+  - sqlite3
+  # Wayland compositor (i3-compatible)
+  - sway
+  # mesh VPN client
+  - tailscale
+  - tesseract-ocr
+  # instant terminal sharing via SSH
+  - tmate
+  - traceroute
+  - ubuntu-restricted-addons
+  - unzip
+  - uuid-dev
+  - vlc
+  - wget
+  # wl-copy and wl-paste for Wayland clipboard access
+  - wl-clipboard
+  # X window manager controller (used by layout script)
+  - wmctrl
+  # hex viewer and editor
+  - xxd
+  # YAML/JSON processor (like jq but for YAML)
+  - yq
+  - zip
+  - zlib1g-dev
+  - zoom
 
 dnf:
   items:
