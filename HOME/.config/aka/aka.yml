@@ -433,7 +433,13 @@ aliases:
   ca: cargo add
   cad: cargo add --dev
   ci: cargo init
-  cip: cargo install --path . --locked
+  cip: |
+    local root="${1:-.}"
+    cargo metadata --manifest-path "$root/Cargo.toml" \
+      --format-version 1 --no-deps \
+    | jq -r '.packages[] | select(any(.targets[]; any(.kind[]; . == "bin"))) | .manifest_path | sub("/Cargo.toml$"; "")' \
+    | sort -u \
+    | xargs -I{} cargo install --path {}
   cf: cargo fmt
   cc: cargo clippy
   ccf: cargo clippy --fix -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used
