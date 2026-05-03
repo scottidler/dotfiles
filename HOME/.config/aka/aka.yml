@@ -435,8 +435,7 @@ aliases:
   cad: cargo add --dev
   ci: cargo init
   cip: |
-    local root="${1:-.}"
-    cargo metadata --manifest-path "$root/Cargo.toml" \
+    cargo metadata --manifest-path "${1:-.}/Cargo.toml" \
       --format-version 1 --no-deps \
     | jq -r '.packages[] | select(any(.targets[]; any(.kind[]; . == "bin"))) | .manifest_path | sub("/Cargo.toml$"; "")' \
     | sort -u \
@@ -448,7 +447,7 @@ aliases:
   cb: cargo build
   cbr: cargo build --release
   ct: cargo test
-  cr: cargo run -q --
+  cR: cargo run -q --
   crd: RUST_LOG=debug cargo run -q --
   crh: cargo run -q -- --help
   crv: cargo run -q -- --version
@@ -655,6 +654,9 @@ aliases:
 
   # tailscale
   ts: tailscale
+
+  # nanobanana
+  nb: nanobanana
 
   # persona
   p: persona
