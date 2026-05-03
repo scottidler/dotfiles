@@ -214,6 +214,7 @@ aliases:
   # ========================================
 
   home|desk: ssh desk.lan
+  home.ts|desk.ts: ssh desk.taild2b9be.ts.net
   work|lappy: ssh ltl-7007.lan
   xps: ssh saidler@xps.lan
 
@@ -651,6 +652,9 @@ aliases:
   # ========================================
   # ONE-OFFS (review periodically)
   # ========================================
+
+  # tailscale
+  ts: tailscale
 
   # persona
   p: persona
