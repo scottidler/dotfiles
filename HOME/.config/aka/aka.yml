@@ -460,6 +460,7 @@ aliases:
   # Claude
   # ========================================
   c: claude
+  cc: claude --continue
   ch: claude --model haiku
   cs: claude --model sonnet
   co: claude --model opus
