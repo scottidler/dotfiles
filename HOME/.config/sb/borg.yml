@@ -29,6 +29,15 @@ telegram:
 #   bot-token: DISCORD_BOT_TOKEN
 #   channel-id: 0
 
+# Desktop notifications - peer to the Telegram notifier.
+# Same Processing... -> Saved/Duplicate/Failed messages via libnotify
+# (user session D-Bus). Host-gated so headless borg hosts stay silent.
+desktop:
+  enabled: true
+  host: desk
+  timeout-ms: 5000
+  appname: borg
+
 fabric:
   binary: /home/saidler/go/bin/fabric
   model: ""

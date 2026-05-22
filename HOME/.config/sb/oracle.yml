@@ -1,0 +1,22 @@
+# oracle config - knowledge retrieval MCP server
+# Schema source of truth: oracle/src/config.rs in the second-brain workspace.
+
+vault:
+  root-path: ~/repos/scottidler/obsidian/
+
+# Vault file watcher. When enabled, the running MCP server reindexes on file changes.
+watcher:
+  enable: true
+  debounce-secs: 2
+  ignore:
+    - .obsidian
+    - .git
+    - .trash
+
+# How often the periodic inbound-link recompute task runs.
+# 600 seconds = 10 minutes. Lower = fresher counts, more contention.
+inbound-recompute-interval-secs: 600
+
+# Logging. Stays out of stdout (MCP JSON-RPC contract).
+logging:
+  level: info

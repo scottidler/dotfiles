@@ -295,6 +295,7 @@ cargo:
   - cargo-expand
   - cargo-release
   - cargo-show-asm
+  - cargo-sweep
   - cargo-udeps
   - cargo-update
   - cargo-upgrades
@@ -476,6 +477,13 @@ script:
       "https://api.github.com/repos/aristocratos/btop/releases/latest" \
       "btop"
     echo "btop installed successfully."
+  cargo-sweep-cron: |
+    # Weekly sweep of stale Rust build artifacts across ~/repos.
+    # Deletes target/ artifacts not accessed in 14 days. Runs Sundays 03:00.
+    LINE='0 3 * * 0 /home/saidler/.cargo/bin/cargo-sweep sweep -r -t 14 /home/saidler/repos >> /home/saidler/.cache/cargo-sweep.log 2>&1'
+    mkdir -p /home/saidler/.cache
+    (crontab -l 2>/dev/null | grep -vF "cargo-sweep"; echo "$LINE") | crontab -
+    echo "cargo-sweep weekly cron installed"
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat

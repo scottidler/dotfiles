@@ -1,0 +1,163 @@
+vault:
+  root-path: ~/repos/scottidler/obsidian/
+  ignore:
+    - ".git"
+    - ".obsidian"
+    - ".cortex"
+    - "assets"
+    - "attachments"
+  exclude:
+    - "CLAUDE.md"
+    - "README.md"
+    - "system/**"
+  include:
+    - "system/2026-*.md"
+    - "system/design-*.md"
+    - "notes/ai/**"
+
+log-level: debug
+
+schema:
+  domains: [ai, tech, football, work, writing, music, spanish, life, homelab, diy, resources, system]
+  types: [youtube, article, github, social, book, video, research, daily, meeting, note, vocab, moc, link, poem, system, digest, review]
+  origins: [authored, assisted, generated]
+  statuses: [unread, reading, reviewed, starred]
+  methods: [http, telegram, clipboard, cli, manual]
+
+actions:
+  naming:
+    style: lowercase-hyphenated
+    max-length: 80
+    exempt-patterns:
+      - "^[\\p{Emoji}].*/$"
+
+  frontmatter:
+    required: [title, date, type, domain, origin, tags]
+    exempt:
+      daily: [domain]
+    path-exempt:
+      "Inbox/**": [domain, origin, tags]
+      "notes/ai/**": [domain, origin]
+    type-fields:
+      youtube: [source, creator, duration]
+      video: [source, creator, duration]
+      article: [source, creator]
+      github: [source]
+      social: [source]
+      research: [source]
+      book: [creator]
+      meeting: [scope, company]
+      link: [source]
+    auto-title: true
+
+  tags:
+    style: lowercase-hyphenated
+    canonical:
+      - ai-llm
+      - sre
+      - kubernetes
+      - football
+      - obsidian
+      - rust
+      - python
+      - nixos
+      - writing
+      - music
+      - spanish
+    aliases:
+      ai: ai-llm
+      ML: ai-llm
+      ml: ai-llm
+      k8s: kubernetes
+      kube: kubernetes
+      nix: nixos
+
+  scope:
+    rules:
+      - match: { tags: [sre, dat, tatari, engprog] }
+        set: { scope: work, company: tatari }
+      - match: { source-contains: "granola" }
+        set: { scope: work, confidential: true }
+
+  linking:
+    scan-for: [people, projects, concepts]
+    entities:
+      people: []
+      projects: []
+    min-word-length: 5
+    targets:
+      types:
+        exclude: [daily, youtube, article, book, video, social, research, link, system]
+        include: []
+      paths:
+        exclude: ["journal/", "inbox/"]
+        include: []
+
+  intel:
+    daily-note: true
+    weekly-review: true
+    fabric-patterns: [extract_wisdom, summarize]
+    output-path: "notes/ai"
+
+  duplicates:
+    threshold: 0.85
+    same-type-only: false
+    exclude:
+      - "journal/**"
+
+  auto-tag:
+    enabled: true
+    min-tags-threshold: 3
+
+  broken-links:
+    check-wikilinks: true
+    check-urls: false
+
+state:
+  cache-dir: ".cortex"
+
+daemon:
+  debounce-secs: 5
+  watch: notify
+  poll-interval: 300
+  daily-at: "M-F 07:00"
+  weekly-at: "Sun 22:00"
+  actions:
+    classify:
+      enable: true
+    lint:
+      enable: true
+    broken-links: {}
+    link:
+      enable: true
+    duplicates:
+      enable: true
+    quality:
+      enable: true
+    auto-tag: {}
+    sweep:
+      enable: true
+    state: {}
+    intel:
+      enable: true
+
+migrations:
+  - name: v2-field-renames
+    field-renames:
+      url: source
+      author: creator
+      uploader: creator
+      channel: creator
+      duration_min: duration
+      trace_id: trace
+      folder: domain
+    field-drops: [day, time, ww, ref]
+  - name: v3-domain-expansion
+    value-renames:
+      domain:
+        knowledge: life
+
+llm:
+  provider: claude
+  model: claude-sonnet-4-6
+  api-key: ANTHROPIC_API_KEY
