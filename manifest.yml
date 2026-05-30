@@ -378,7 +378,6 @@ github:
       bin/reponame: ~/bin/reponame
       bin/git-objects: ~/bin/git-objects
       bin/default-branch: ~/bin/default-branch
-      bin/stale-branches: ~/bin/stale-branches
       shell-functions.sh: ~/.shell-functions.d/clone.sh
       cfg/clone.cfg: ~/.clone/clone/clone.cfg
   scottidler/tmp:
