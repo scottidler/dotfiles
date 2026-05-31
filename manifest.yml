@@ -475,13 +475,17 @@ script:
       "https://api.github.com/repos/aristocratos/btop/releases/latest" \
       "btop"
     echo "btop installed successfully."
-  cargo-sweep-cron: |
-    # Weekly sweep of stale Rust build artifacts across ~/repos.
-    # Deletes target/ artifacts not accessed in 14 days. Runs Sundays 03:00.
-    LINE='0 3 * * 0 /home/saidler/.cargo/bin/cargo-sweep sweep -r -t 14 /home/saidler/repos >> /home/saidler/.cache/cargo-sweep.log 2>&1'
+  sweep-repos-cron: |
+    # Weekly sweep of stale Rust build artifacts across ~/repos. Runs
+    # ~/bin/sweep-repos (linked from HOME/bin/sweep-repos), which enumerates
+    # each repo's Cargo.toml at reposlug depth and sweeps per repo -- avoiding
+    # the `cargo sweep -r ~/repos` walk that stalled on large targets (e.g.
+    # second-brain) and silently made the old cron a no-op. Deletes target/
+    # artifacts older than 14 days. Runs Sundays 03:00.
+    LINE='0 3 * * 0 /home/saidler/bin/sweep-repos --time 14 >> /home/saidler/.cache/sweep-repos.log 2>&1'
     mkdir -p /home/saidler/.cache
-    (crontab -l 2>/dev/null | grep -vF "cargo-sweep"; echo "$LINE") | crontab -
-    echo "cargo-sweep weekly cron installed"
+    (crontab -l 2>/dev/null | grep -vE "cargo-sweep|sweep-repos"; echo "$LINE") | crontab -
+    echo "sweep-repos weekly cron installed"
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
