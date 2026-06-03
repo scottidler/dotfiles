@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Exec=/opt/Obsidian/obsidian %U
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name[en_US]=Obsidian
+Name=Obsidian
+Comment[en_US]=Start Obsidian on login
+Comment=Start Obsidian on login
+Icon=obsidian
+StartupWMClass=obsidian

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Exec=/opt/telegram/Telegram -- %U
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name[en_US]=Telegram
+Name=Telegram
+Comment[en_US]=Start Telegram on login
+Comment=Start Telegram on login
+Icon=org.telegram.desktop
+StartupWMClass=TelegramDesktop
