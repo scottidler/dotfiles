@@ -1,0 +1,12 @@
+# persona-cli config (~/.config/persona/persona.yml)
+# Keys are kebab-case. CLI flags > env vars > this file > defaults.
+#
+# log-level: error | warn | info | debug | trace
+#   overridden by `--log-level <level>` or `LOG_LEVEL=<level>`
+log-level: debug
+
+# Other overridable settings (defaults shown):
+# persona-url: https://persona.tatari.dev
+# okta-issuer: https://tatari.okta.com/oauth2/default
+# client-id: 0oa11b1u7nzZd5EaW698
+# redirect-uri: http://local.tatari.tools:11313/callback
