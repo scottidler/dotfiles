@@ -116,6 +116,15 @@ actions:
 state:
   cache-dir: ".cortex"
 
+graph:
+  # Typed fact-edge coverage. Triple extraction has no advancing cursor, so the
+  # cap IS the window: set it above the ingested-note count (729 today) to mine
+  # the whole corpus each pass rather than re-mining the first 50.
+  fact-max-per-run: 1000
+  # In-process weekly backfill of the LLM fact layer. Deterministic edges are
+  # maintained separately on the 15-min graph tick; this refreshes only facts.
+  fact-interval-secs: 604800
+
 daemon:
   debounce-secs: 5
   watch: notify
