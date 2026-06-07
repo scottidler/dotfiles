@@ -248,7 +248,7 @@ aliases:
     xargs -n1 sudo -H python3 -m pip install -U
 
   # nix
-  nb: nix-build
+  nB: nix-build
   nrs: sudo nix-rebuild switch
 
   # ========================================
@@ -426,6 +426,7 @@ aliases:
   aws-env: 'env | grep AWS_'
   update-ctx|update-context: $av aws eks --region lookup:region[$1] update-kubeconfig --name $1 --alias $1 --role-arn arn:aws:iam::878256633362:role/eks-$1-admin
   debug-git: GIT_SSH_COMMAND="ssh -i $WORK_SSH_PUB_KEY -vvv"
+  pd-dev: PAGERDUTY_API_TOKEN="$PAGERDUTY_SANDBOX_API_TOKEN" pd -c ~/.config/pagerduty-cli/sandbox.yml
 
   # ========================================
   # CARGO (Rust)
@@ -460,11 +461,10 @@ aliases:
   # Claude
   # ========================================
   c: claude
-  cc: claude --continue
+  cC: claude --continue
   ch: claude --model haiku
   cs: claude --model sonnet
-  co: claude --model opus
-  co1m|coin: "claude --model 'opus[1m]'"
+  co|coin: claude --model opus
 
   c-p: claude-permit
 
@@ -530,6 +530,8 @@ aliases:
   ls-remote-branch: 'git ls-remote | grep refs/heads/$(git rev-parse --abbrev-ref HEAD)'
   ls-remote-tag: 'git ls-remote | grep refs/tags/$(git describe --abbrev=0)'
   ls-remote-tags: git ls-remote | grep refs/tags/
+  remote-origin-url: git config --get remote.origin.url
+  default-branch: "git ls-remote --symref https://github.com/$1 HEAD | grep '^ref:' | cut -f1 | sed 's@^ref: refs/heads/@@'"
   set-upstream: 'git branch --set-upstream-to=origin/$(git rev-parse --abbrev-ref HEAD) $(git rev-parse --abbrev-ref HEAD)'
   prune: git remote prune origin
   unstage: git reset HEAD
@@ -665,20 +667,20 @@ aliases:
   pv: persona --version
   pl: persona login
   pL: persona logout
-  pa: persona anniversary
+  pann: persona anniversary
   pw: persona whois
   pr: persona reports
   pc: persona chain
-  pt: persona team
+  ptm: persona team
   pT: persona teammates
   po: persona orgs
   pD: persona departments
-  pt: persona titles
+  pti: persona titles
   pS: persona search
   phc: persona headcount
   pH: persona hired
   pg: persona github
-  pm: persona manager
+  pmgr: persona manager
 
 
   # easy access to the obsidian vault
