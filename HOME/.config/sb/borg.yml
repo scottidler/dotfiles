@@ -29,6 +29,21 @@ telegram:
 #   bot-token: DISCORD_BOT_TOKEN
 #   channel-id: 0
 
+# Signal transport - peer to Telegram with end-to-end-encrypted envelope
+# routing. Bootstrap is out-of-band: stop borg, run
+#   signal-rs link --name borg --state-dir ~/.local/share/sb/borg/signal-state/
+# once on the host that should run Signal ingest, scan the QR with the
+# primary phone (Settings -> Linked Devices), then uncomment the block below
+# and restart borg. `host` is MANDATORY (hostname of the machine that runs
+# ingest); Signal-Server fans Note-to-Self envelopes to every linked device,
+# so leaving `host` unset on a multi-machine install would silently double-
+# ingest. See docs/design/2026-05-24-signal-as-borg-transport.md.
+signal:
+  allowed-senders: []         # peer ACI UUIDs allowed to send borg material
+  # notification-recipient defaults to Note-to-Self (your own account)
+  host: desk
+  # notetoself-rate-threshold-per-hour: 100  # default; raise only after a documented baseline reason
+
 # Desktop notifications - peer to the Telegram notifier.
 # Same Processing... -> Saved/Duplicate/Failed messages via libnotify
 # (user session D-Bus). Host-gated so headless borg hosts stay silent.
@@ -70,7 +85,7 @@ log-level: debug
 staging:
   enabled: true
   double-write: true
-  root: ~/.local/share/borg/stages
+  root: ~/.local/share/sb/borg/stages
   retention-days: 60
   rejected-retention-days: 90
   layout: per-trace
