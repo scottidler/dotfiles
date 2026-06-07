@@ -148,9 +148,11 @@ if [ -f $HOME/.cargo/env ]; then
     source "$HOME/.cargo/env"
 fi
 
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"                    # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# nvm disabled 2026-06-07 - node is managed by mise now (was shadowing mise's node with a stale v22.14.0).
+# To fully remove: rkvr rmrf "$HOME/.nvm". Backup of this file: ~/.zshrc.bak-pre-nvm-removal
+# export NVM_DIR="$HOME/.nvm"
+# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"                    # This loads nvm
+# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 # ============================================================================
 # Put INC_APPEND_HISTORY and safe history settings HERE
