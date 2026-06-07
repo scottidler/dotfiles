@@ -1,7 +1,7 @@
 [user]
     name = Scott A. Idler
     email = scott.a.idler@gmail.com
-    signingkey = 1637717AA84258312B7D4DA7883230927DBA8672
+    signingkey = ~/.ssh/identities/home/id_ed25519.pub
 [commit]
     gpgsign = true
 [log]
@@ -44,7 +44,7 @@
     allowed = AKIAIOSFODNN7EXAMPLE
     allowed = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 [gpg]
-	program = gpg
+	format = ssh
 [init]
 	defaultBranch = main
 [includeIf "gitdir:~/repos/tatari-tv/"]

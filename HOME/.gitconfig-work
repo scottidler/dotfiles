@@ -2,7 +2,7 @@
 [user]
     name = Scott A. Idler
     email = scott.idler@tatari.tv
-    signingkey = 3B571ED1E0D30F5F9185E88C0A72A08288BCC521
+    signingkey = ~/.ssh/identities/work/id_ed25519.pub
 
 [branch "main"]
     autosetupmerge = true
