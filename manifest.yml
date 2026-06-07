@@ -374,14 +374,6 @@ github:
   scottidler/whitespace:
     cargo:
     - ./
-  scottidler/git:
-    link:
-      bin/clone-lite: ~/bin/clone-lite
-      bin/reponame: ~/bin/reponame
-      bin/git-objects: ~/bin/git-objects
-      bin/default-branch: ~/bin/default-branch
-      shell-functions.sh: ~/.shell-functions.d/git.sh
-      cfg/clone.cfg: ~/.clone/clone/clone.cfg
   scottidler/tmp:
     link:
       bin/tmp: ~/bin/tmp
@@ -539,6 +531,41 @@ script:
       "fzf-.*-linux_amd64.tar.gz" \
       "https://api.github.com/repos/junegunn/fzf/releases/latest" \
       "fzf"
+  firefox-opt: |
+    # Mozilla's official Firefox under /opt, replacing the Ubuntu snap. snap
+    # confinement silently breaks extension capabilities: the obsidian-borg
+    # capture web-ext's POST to the local borg daemon never lands under snap,
+    # yet works in this /opt build (proven 2026-06-07 - identical extension,
+    # identical daemon). Bookmarks/logins/most add-ons return via Firefox Sync;
+    # only the obsidian-borg web-ext must be re-added by hand afterward.
+    TMP=$(mktemp -d)
+    curl -fsSL -o "$TMP/firefox.tar.xz" "https://download.mozilla.org/?product=firefox-latest&os=linux64&lang=en-US"
+    sudo rm -rf /opt/firefox
+    sudo tar xf "$TMP/firefox.tar.xz" -C /opt
+    rm -rf "$TMP"
+    sudo ln -sf /opt/firefox/firefox /usr/local/bin/firefox
+    sudo tee /usr/share/applications/firefox.desktop >/dev/null <<'DESKTOP'
+    [Desktop Entry]
+    Name=Firefox
+    Comment=Web Browser
+    Exec=/opt/firefox/firefox %u
+    Icon=/opt/firefox/browser/chrome/icons/default/default128.png
+    Terminal=false
+    Type=Application
+    Categories=Network;WebBrowser;
+    MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+    StartupNotify=true
+    StartupWMClass=firefox
+    DESKTOP
+    sudo snap remove firefox 2>/dev/null || true
+    sudo tee /etc/apt/preferences.d/no-firefox-snap >/dev/null <<'PIN'
+    # Block Ubuntu's transitional firefox deb (it reinstalls the snap).
+    # Firefox is managed under /opt by dotfiles - do not let apt restore the snap.
+    Package: firefox
+    Pin: release o=Ubuntu
+    Pin-Priority: -1
+    PIN
+    echo "firefox: /opt install complete; snap removed + pinned out. Re-add the obsidian-borg web-ext after Firefox Sync login."
   exercism: |
     LATEST="https://api.github.com/repos/exercism/cli/releases/latest"
     URL=$(curl -sL "$LATEST" | jq -r ".assets[] | select(.name | test(\"$OS-$ARCH\")) | .browser_download_url")
