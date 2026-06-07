@@ -341,11 +341,14 @@ github:
     - ./
   scottidler/git-tools:
     cargo:
+    - clone
     - ls-git-repos
     - ls-github-repos
     - ls-owners
     - ls-stale-branches
     - ls-stale-prs
+    link:
+      shell-functions.sh: ~/.shell-functions.d/git-tools.sh
   scottidler/kat:
     cargo:
     - ./
@@ -373,12 +376,11 @@ github:
     - ./
   scottidler/git:
     link:
-      bin/clone: ~/bin/clone
       bin/clone-lite: ~/bin/clone-lite
       bin/reponame: ~/bin/reponame
       bin/git-objects: ~/bin/git-objects
       bin/default-branch: ~/bin/default-branch
-      shell-functions.sh: ~/.shell-functions.d/clone.sh
+      shell-functions.sh: ~/.shell-functions.d/git.sh
       cfg/clone.cfg: ~/.clone/clone/clone.cfg
   scottidler/tmp:
     link:
@@ -503,6 +505,25 @@ script:
     net.ipv6.conf.wlp2s0.disable_ipv6 = 1
     EOF
     sudo sysctl --load /etc/sysctl.d/99-disable-ipv6.conf
+  local-tatari-tools-dns: |
+    sudo mkdir -p /etc/systemd/resolved.conf.d
+    sudo tee /etc/systemd/resolved.conf.d/local-tatari-tools.conf <<'EOF'
+    # Route local.tatari.tools to public resolvers that return its real A record.
+    # Managed by dotfiles via manifest - do not edit directly.
+    # local.tatari.tools is the persona-cli OAuth PKCE redirect host: a public
+    # DNS name pointing at loopback (127.0.0.1). A link resolver (e.g. a home
+    # router) may strip a public name that resolves to loopback, returning
+    # NOERROR/0-answers, so the OAuth browser callback fails with "Server Not
+    # Found". Routing only this name to public DNS fixes it without /etc/hosts;
+    # .lan and all other DNS stay on the link resolver. See persona-cli
+    # docs/auth-security-review.md.
+    [Resolve]
+    DNS=1.1.1.1 8.8.8.8
+    Domains=~local.tatari.tools
+    EOF
+    sudo systemctl restart systemd-resolved
+    sudo resolvectl flush-caches
+    echo "local.tatari.tools DNS routing installed"
   docker: |
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
     sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
