@@ -483,6 +483,26 @@ script:
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
+  passwordless-sudo: |
+    # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
+    # instead of editing /etc/sudoers directly. The content is syntax-checked
+    # with `visudo -cf -` before install; a malformed sudoers file can lock you
+    # out of sudo entirely, so install is skipped if validation fails. The
+    # filename is the bare username (no '.' or '~') so sudo's #includedir does
+    # not skip it; the file is installed root:root mode 0440 as sudo requires.
+    # First run prompts for your password (that is the point); subsequent sudo
+    # is passwordless.
+    user="$(whoami)"
+    file="/etc/sudoers.d/$user"
+    content="$(printf '%s\n' "# Managed by scottidler/dotfiles via manifest - do not edit directly." "$user ALL=(ALL) NOPASSWD: ALL")"
+    if printf '%s\n' "$content" | visudo -cf -; then
+      printf '%s\n' "$content" | sudo tee "$file" >/dev/null
+      sudo chown root:root "$file"
+      sudo chmod 0440 "$file"
+      echo "installed $file (passwordless sudo)"
+    else
+      echo "ERROR: sudoers syntax check failed; $file not installed" >&2
+    fi
   disable-ipv6: |
     sudo tee /etc/sysctl.d/99-disable-ipv6.conf <<'EOF'
     # Disable IPv6 system-wide.
