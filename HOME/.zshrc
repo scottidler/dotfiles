@@ -110,9 +110,11 @@ hash kubectl 2>/dev/null && source <(kubectl completion zsh)
 [ -f ~/.acme.sh/acme.sh.env ] && source ~/.acme.sh/acme.sh.env
 
 # NOTE: it is important for the work to come before the home
-eval $(keychain --eval --agents ssh --quiet \
-    ~/.ssh/identities/work/id_ed25519 \
-    ~/.ssh/identities/home/id_ed25519)
+if hash keychain 2> /dev/null; then
+    eval $(keychain --eval --agents ssh --quiet \
+        ~/.ssh/identities/work/id_ed25519 \
+        ~/.ssh/identities/home/id_ed25519)
+fi
 
 if hash fzf 2> /dev/null; then
     [[ -f /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
