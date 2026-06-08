@@ -216,6 +216,9 @@ aliases:
   home|desk: ssh desk.lan
   home.ts|desk.ts: ssh desk.taild2b9be.ts.net
   work|lappy: ssh ltl-7007.lan
+  mini: ssh saidler@mini.lan
+  mina: ssh -t saidler@mini.lan hermes -Q
+  mina-c: ssh -t saidler@mini.lan hermes -Q -c
   xps: ssh saidler@xps.lan
 
   # ========================================
