@@ -39,7 +39,12 @@ export WORK_REPOS_DIR="~/repos/tatari-tv"
 export WORK_SSH_PUB_KEY="~/.ssh/identities/work/id_ed25519"
 export HOME_SSH_PUB_KEY="~/.ssh/identities/home/id_ed25519"
 
-ip=$(hostname -I | awk '{print $1}')
+if [ "$OS" = "darwin" ]; then
+  # BSD hostname has no -I; use ipconfig to get the primary interface IP
+  ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
+else
+  ip=$(hostname -I | awk '{print $1}')
+fi
 export DEFAULT_NETWORK="${ip%.*}.0"
 
 export RUSTC_WRAPPER="$(which sccache)"
