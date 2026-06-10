@@ -589,9 +589,12 @@ script:
   exercism: |
     LATEST="https://api.github.com/repos/exercism/cli/releases/latest"
     URL=$(curl -sL "$LATEST" | jq -r ".assets[] | select(.name | test(\"$OS-$ARCH\")) | .browser_download_url")
-    wget -q $URL
-    tar xvf $(basename $URL)
-    mv exercism ~/bin/ && rm $(basename $URL)
+    # Download + extract in a temp dir, pulling ONLY the binary into ~/bin.
+    # The release tarball also contains LICENSE/README.md/shell/; extracting it
+    # in CWD (repo root) used to clobber this repo's own files.
+    TMP=$(mktemp -d)
+    wget -q -P "$TMP" "$URL"
+    tar xf "$TMP/$(basename "$URL")" -C ~/bin/ exercism
   git-tools: |
     latest \
       "git-tools-v.*-linux.tar.gz" \
@@ -607,6 +610,16 @@ script:
       | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
       && sudo apt update \
       && sudo apt install gh -y
+  gnome-no-idle-dim: |
+    # Stop GNOME dimming the screen on idle.
+    # The `power-saver` power profile forces idle screen-dimming down to the
+    # `idle-brightness` percentage EVEN WHEN the "Dim Screen" toggle (idle-dim)
+    # is off - so the GUI toggle alone doesn't fix it. Pinning idle-brightness
+    # to 100 makes that forced dim a no-op no matter which profile is active,
+    # so it's robust across machines and battery/AC.
+    gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
+    gsettings set org.gnome.settings-daemon.plugins.power idle-brightness 100
+    echo "gnome idle screen-dimming disabled"
   helm: |
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
     chmod 700 get_helm.sh
