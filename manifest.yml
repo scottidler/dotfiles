@@ -719,6 +719,9 @@ script:
     # "[ ! -e $DEFAULT_SOURCE ]" check fails and the re-write is skipped. Keeping an
     # empty spotify.list here prevents the postinst from stomping it on each upgrade.
     sudo truncate -s0 /etc/apt/sources.list.d/spotify.list
+  sccache: |
+    systemctl --user daemon-reload
+    systemctl --user enable --now sccache.service
   steam: |
     URL=http://media.steampowered.com/client/installer/steam.deb
     DEB=$(basename $URL)

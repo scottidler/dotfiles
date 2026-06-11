@@ -1,0 +1,13 @@
+[Unit]
+Description=sccache compiler cache server
+
+[Service]
+ExecStart=/home/saidler/.cargo/bin/sccache --start-server
+ExecStop=/home/saidler/.cargo/bin/sccache --stop-server
+Restart=on-failure
+Environment=SCCACHE_DIR=/home/saidler/.cache/sccache
+Environment=SCCACHE_CACHE_SIZE=20G
+Environment=SCCACHE_SERVER_PORT=4227
+
+[Install]
+WantedBy=default.target
