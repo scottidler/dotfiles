@@ -21,7 +21,10 @@
     rebase = true
 [push]
     default = simple
-    followTags = true
+    # followTags pushes tags implicitly with branch pushes; if the branch push is
+    # rejected (protected/ruleset-gated main) the tag still goes through, orphaning
+    # it. All flows push tags explicitly (git push origin vX.Y.Z), so keep this off.
+    followTags = false
 [merge]
     ff = only
     tool = meld
