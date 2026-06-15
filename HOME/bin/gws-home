@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# gws scoped to the home persona (scott.a.idler@gmail.com)
+# file keyring backend keeps creds inside this config dir (no shared OS-keyring collision)
+exec env GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws/home" \
+         GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file gws "$@"

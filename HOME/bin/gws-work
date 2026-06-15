@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# gws scoped to the work persona (scott.idler@tatari.tv)
+exec env GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws/work" gws "$@"
