@@ -4,8 +4,10 @@ RUN mkdir -p /home/manifest/.../
 WORKDIR /home/manifest/.../
 
 RUN apt-get update && apt-get install -y \
+    git \
     vim \
     curl \
+    tree \
     sudo \
     python3 \
     python3-pip
@@ -21,4 +23,4 @@ COPY . /home/manifest/.../
 
 # change user
 RUN chown manifest:manifest -R /home/manifest
-USER $manifest
+USER manifest
