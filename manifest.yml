@@ -611,15 +611,10 @@ script:
       && sudo apt update \
       && sudo apt install gh -y
   gnome-no-idle-dim: |
-    # Stop GNOME dimming the screen on idle.
-    # The `power-saver` power profile forces idle screen-dimming down to the
-    # `idle-brightness` percentage EVEN WHEN the "Dim Screen" toggle (idle-dim)
-    # is off - so the GUI toggle alone doesn't fix it. Pinning idle-brightness
-    # to 100 makes that forced dim a no-op no matter which profile is active,
-    # so it's robust across machines and battery/AC.
+    # power-saver forces idle dim regardless of the idle-dim toggle; balanced does not.
     gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
-    gsettings set org.gnome.settings-daemon.plugins.power idle-brightness 100
-    echo "gnome idle screen-dimming disabled"
+    powerprofilesctl set balanced
+    echo "gnome idle screen-dimming disabled (profile: $(powerprofilesctl get))"
   helm: |
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
     chmod 700 get_helm.sh
