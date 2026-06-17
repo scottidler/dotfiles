@@ -367,6 +367,7 @@ aliases:
   # ========================================
 
   m: manifest
+  no-dim: manifest --script gnome-no-idle-dim
 
   # ========================================
   # PERSONAL PROJECTS - otto
