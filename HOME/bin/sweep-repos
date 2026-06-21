@@ -1,56 +1,136 @@
 #!/usr/bin/env bash
-# sweep-repos: run cargo-sweep on every Rust project found two directories
-# deep under a root (default ~/repos), enumerating repo-root Cargo.toml files
-# instead of `cargo sweep -r <root>` -- which stalls walking into target/ and
-# any large non-Rust subtrees. `find -maxdepth 3` reads only <root>/<org>/<repo>
-# dir listings and never descends into target/ (depth 4+), so it is fast.
+# sweep-repos: reclaim Rust build artifacts across a root (default ~/repos) by
+# running cargo-sweep per repo, enumerating repo-root Cargo.toml files instead
+# of `cargo sweep -r <root>` -- which stalls walking into target/ and any large
+# non-Rust subtrees. `find -maxdepth 3` reads only <root>/<org>/<repo> dir
+# listings and never descends into target/ (depth 4+), so it is fast.
+#
+# Two modes:
+#   manual    sweep-repos [--time DAYS]            one pass, remove artifacts
+#                                                  older than DAYS (default 14)
+#   watermark sweep-repos --ensure-free GIB        free-space driven: only acts
+#                                                  when free space on the root's
+#                                                  filesystem is below GIB, then
+#                                                  sweeps in escalating tiers
+#                                                  (gentlest first) until the
+#                                                  floor is restored.
+#
+# The daily cron uses watermark mode so a healthy day is a no-op and the fuller
+# the disk gets, the harder it sweeps. Tiers escalate 14d -> 7d -> 3d -> 1d:
+# stale artifacts go first, hot repos (e.g. second-brain, loopr-v5) are only
+# touched if the milder tiers don't free enough.
 #
 # Managed by scottidler/dotfiles via manifest (link: HOME -> $HOME). Edit the
-# repo copy, not the ~/bin symlink. The weekly cron is the `sweep-repos-cron`
-# entry in manifest.yml's script: section.
+# repo copy, not the ~/bin symlink. The cron is the `sweep-repos-cron` entry in
+# manifest.yml's script: section.
 set -euo pipefail
+
+# cron runs with a minimal PATH (/usr/bin:/bin) that omits ~/.cargo/bin, so the
+# `command -v cargo-sweep` check below would fail and the script would exit
+# without sweeping -- the exact silent failure that let / fill to 96%. Put
+# cargo's bin dir on PATH ourselves so this behaves identically under cron and
+# an interactive login shell.
+export PATH="${HOME}/.cargo/bin:${PATH}"
 
 DAYS=14
 ROOT="${HOME}/repos"
+ENSURE_FREE=""
 DRY_RUN=()
+
+# Escalation ladder for watermark mode: gentlest (most days = fewest artifacts
+# removed) first, harshest last. Only descend a tier if the floor isn't yet met.
+TIERS=(14 7 3 1)
 
 usage() {
   cat >&2 <<'EOF'
-usage: sweep-repos [--time DAYS] [--root DIR] [--dry-run]
-  --time DAYS   remove build artifacts older than DAYS (default: 14)
-  --root DIR    search root (default: ~/repos)
-  --dry-run     report only; delete nothing
+usage: sweep-repos [--time DAYS] [--ensure-free GIB] [--root DIR] [--dry-run]
+  --time DAYS        manual mode: remove build artifacts older than DAYS (default: 14)
+  --ensure-free GIB  watermark mode: sweep only when free space on the root's
+                     filesystem is below GIB, escalating 14d -> 7d -> 3d -> 1d
+                     until the floor is restored (overrides --time)
+  --root DIR         search root (default: ~/repos)
+  --dry-run          report only; delete nothing
 Enumerates <root>/<org>/<repo>/Cargo.toml and runs cargo-sweep per repo.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --time)    DAYS="$2"; shift 2 ;;
-    --root)    ROOT="$2"; shift 2 ;;
-    --dry-run) DRY_RUN=(--dry-run); shift ;;
-    -h|--help) usage; exit 0 ;;
+    --time)        DAYS="$2"; shift 2 ;;
+    --ensure-free) ENSURE_FREE="$2"; shift 2 ;;
+    --root)        ROOT="$2"; shift 2 ;;
+    --dry-run)     DRY_RUN=(--dry-run); shift ;;
+    -h|--help)     usage; exit 0 ;;
     *) echo "sweep-repos: unknown arg: $1" >&2; usage; exit 2 ;;
   esac
 done
 
-command -v cargo-sweep >/dev/null 2>&1 || { echo "sweep-repos: cargo-sweep not installed" >&2; exit 1; }
+# Best-effort desktop toast. Works from cron by pointing at the user's session
+# bus (cron has no DBUS_SESSION_BUS_ADDRESS). Never fails the script.
+toast() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  local urgency="$1"; shift
+  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}" \
+    notify-send -a sweep-repos -u "${urgency}" "$@" >/dev/null 2>&1 || true
+}
 
-echo "sweep-repos: root=${ROOT} time=${DAYS}d${DRY_RUN:+ (dry-run)}" >&2
+# A missing cargo-sweep is the exact silent failure that let / fill to 100%:
+# the cron logged "not installed" to a file nobody reads and swept nothing.
+# Complain loudly so it can't rot unnoticed.
+if ! command -v cargo-sweep >/dev/null 2>&1; then
+  echo "sweep-repos: cargo-sweep not installed" >&2
+  toast critical "sweep-repos: cargo-sweep MISSING" "Rust build artifacts are NOT being swept and the disk will fill. Install it: cargo install cargo-sweep"
+  exit 1
+fi
 
+# Available GiB on the filesystem that holds ROOT (integer, truncated).
+free_gib() {
+  df -B1 --output=avail "${ROOT}" 2>/dev/null | awk 'NR==2 {printf "%d", $1/1073741824}'
+}
+
+# Sweep every built repo under ROOT with a single --time window.
 # Repo-root manifests live exactly two dirs deep: <root>/<org>/<repo>/Cargo.toml.
 # -maxdepth 3 stops find from descending into target/ (depth 4+) -> fast, no stall.
-count=0
-find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 \
-  | sort -z \
-  | while IFS= read -r -d '' manifest; do
-      repo="$(dirname "${manifest}")"
-      # Skip repos that were never built locally (no target/) to keep the log clean.
-      [[ -d "${repo}/target" ]] || continue
-      count=$((count + 1))
-      echo "sweep-repos: [${count}] ${repo}" >&2
-      cargo sweep "${DRY_RUN[@]}" --time "${DAYS}" "${repo}" \
-        || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
-    done
+sweep_pass() {
+  local days="$1" count=0 manifest repo
+  while IFS= read -r -d '' manifest; do
+    repo="$(dirname "${manifest}")"
+    # Skip repos that were never built locally (no target/) to keep the log clean.
+    [[ -d "${repo}/target" ]] || continue
+    count=$((count + 1))
+    echo "sweep-repos:   [${count}] --time ${days}d ${repo}" >&2
+    cargo sweep "${DRY_RUN[@]}" --time "${days}" "${repo}" \
+      || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
+  done < <(find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 | sort -z)
+}
 
+if [[ -n "${ENSURE_FREE}" ]]; then
+  [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }
+  free="$(free_gib)"
+  echo "sweep-repos: watermark mode: ${free}GiB free, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
+  if (( free >= ENSURE_FREE )); then
+    echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
+    exit 0
+  fi
+  for tier in "${TIERS[@]}"; do
+    echo "sweep-repos: ${free}GiB < ${ENSURE_FREE}GiB floor; sweeping artifacts older than ${tier}d" >&2
+    sweep_pass "${tier}"
+    if [[ ${#DRY_RUN[@]} -gt 0 ]]; then
+      echo "sweep-repos: (dry-run) no space reclaimed; a real run would stop at the first tier that crosses the floor" >&2
+      continue
+    fi
+    free="$(free_gib)"
+    if (( free >= ENSURE_FREE )); then
+      echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${tier}d tier; done" >&2
+      exit 0
+    fi
+  done
+  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) after the 1d tier; consider relocating CARGO_TARGET_DIR to a larger disk" >&2
+  [[ ${#DRY_RUN[@]} -eq 0 ]] && toast critical "sweep-repos: disk still low" "Swept down to the 1d tier and / still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Manual cleanup or CARGO_TARGET_DIR relocation needed."
+  exit 0
+fi
+
+# Manual single-pass mode.
+echo "sweep-repos: root=${ROOT} time=${DAYS}d${DRY_RUN:+ (dry-run)}" >&2
+sweep_pass "${DAYS}"
 echo "sweep-repos: done" >&2
