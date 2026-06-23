@@ -1,4 +1,4 @@
-format = """$hostname${custom.loc}${custom.wtmatch}${custom.wtdiff}${custom.branch}$all$character"""
+format = """$hostname${custom.loc}${custom.wtmatch}${custom.wtdiff}${custom.branch}$all$line_break$directory$character"""
 
 [username]
 disabled = true
@@ -7,11 +7,13 @@ disabled = true
 # ssh_only stays true (default): nothing locally, "🌐 host" over SSH. Drop the "in".
 format = "[$ssh_symbol$hostname]($style) "
 
-# Builtin directory is replaced by custom.loc, which always shows org/repo[/subpath]
-# inside a repo (dropping the worktree leaf and the ~/repos prefix) and the plain
-# ~-relative cwd elsewhere.
+# custom.loc shows the compressed org/repo[/subpath] identity on line 1; the
+# builtin directory shows the full ~-path on line 2, right before the prompt char.
 [directory]
-disabled = true
+truncation_length = 0
+truncate_to_repo = false
+style = "#7f849c"
+format = "[$path]($style)[$read_only]($read_only_style) "
 
 # Builtin branch is replaced by custom.branch, which suppresses itself in the
 # ≡ case (worktree dir slug already equals the branch — no point repeating it).
