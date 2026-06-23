@@ -1,20 +1,64 @@
-format = """$directory${custom.wtmatch}${custom.wtdiff}$all$character"""
+format = """$hostname${custom.loc}${custom.wtmatch}${custom.wtdiff}${custom.branch}$all$character"""
 
+[username]
+disabled = true
+
+[hostname]
+# ssh_only stays true (default): nothing locally, "🌐 host" over SSH. Drop the "in".
+format = "[$ssh_symbol$hostname]($style) "
+
+# Builtin directory is replaced by custom.loc, which always shows org/repo[/subpath]
+# inside a repo (dropping the worktree leaf and the ~/repos prefix) and the plain
+# ~-relative cwd elsewhere.
 [directory]
-truncation_length = 0
-truncate_to_repo = false
-# style = "yellow"
-format = "[$path]($style)[$read_only]($read_only_style) "
+disabled = true
+
+# Builtin branch is replaced by custom.branch, which suppresses itself in the
+# ≡ case (worktree dir slug already equals the branch — no point repeating it).
+[git_branch]
+disabled = true
 
 [gcloud]
 disabled = true
 
-# --- clone bare-container worktree marker ---
-# clone defaults to a bare container with per-branch worktrees; the worktree dir
-# is a slugify_branch of the branch, so it equals the branch only for brand-new
-# branches. ≡ (green) = dir slug matches the real branch; ≈ (amber) = diverged
-# (e.g. dir `feature-sadm-1234` vs branch `feature/SADM-1234`). Both gate on
-# `--git-common-dir` ending in `.bare`, so flat checkouts never trigger them.
+# --- location: org/repo[/subpath] in a repo, ~-relative cwd otherwise ---
+# Bare-container worktree: identity = parent-of-.bare's last two components, plus
+# the path within the worktree (the worktree-leaf slug is dropped; the ≡/≈ marker
+# and branch carry that). Flat repo: identity = repo root's parent/name + subpath.
+[custom.loc]
+description = "org/repo[/subpath] inside a repo; ~-relative cwd otherwise"
+shell = ["bash", "--noprofile", "--norc"]
+when = "true"
+command = '''
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+prefix=$(git rev-parse --show-prefix 2>/dev/null)
+prefix=${prefix%/}
+if [ -n "$root" ] && [ "$(basename "$common")" = ".bare" ]; then
+    case "$common" in /*) c=$common ;; *) c=$PWD/$common ;; esac
+    container=$(cd "$(dirname "$c")" && pwd)
+    id="$(basename "$(dirname "$container")")/$(basename "$container")"
+    printf '%s' "${id}${prefix:+/$prefix}"
+elif [ -n "$root" ]; then
+    id="$(basename "$(dirname "$root")")/$(basename "$root")"
+    printf '%s' "${id}${prefix:+/$prefix}"
+else
+    p=$(pwd)
+    case $p in
+        "$HOME") p='~' ;;
+        "$HOME"/*) p="~/${p#"$HOME"/}" ;;
+    esac
+    printf '%s' "$p"
+fi
+'''
+style = "bold cyan"
+format = "[$output]($style) "
+
+# --- clone bare-container worktree markers + conditional branch ---
+# ≡ (green) = worktree dir slug matches the real branch (branch hidden, loc/path
+# already shows it); ≈ (amber) = diverged (branch shown, since the slug isn't it).
+# All gate on `--git-common-dir` ending in `.bare`, so flat checkouts never trigger
+# the markers and always show the branch.
 [custom.wtmatch]
 description = "≡ when the worktree dir slug matches the branch"
 shell = ["bash", "--noprofile", "--norc"]
@@ -37,4 +81,20 @@ c=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
 '''
 command = "printf '≈'"
 style = "fg:#f9e2af"
+format = "[$output]($style) "
+
+[custom.branch]
+description = "branch name, except in the ≡ case where the path leaf already is it"
+shell = ["bash", "--noprofile", "--norc"]
+when = '''
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 1
+c=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ "$(basename "$c")" = ".bare" ]; then
+    [ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" != "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
+else
+    true
+fi
+'''
+command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
+style = "bold purple"
 format = "[$output]($style) "
