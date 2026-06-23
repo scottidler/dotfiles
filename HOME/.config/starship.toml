@@ -1,4 +1,4 @@
-format = """$directory$all$character"""
+format = """$directory${custom.wtmatch}${custom.wtdiff}$all$character"""
 
 [directory]
 truncation_length = 0
@@ -8,3 +8,33 @@ format = "[$path]($style)[$read_only]($read_only_style) "
 
 [gcloud]
 disabled = true
+
+# --- clone bare-container worktree marker ---
+# clone defaults to a bare container with per-branch worktrees; the worktree dir
+# is a slugify_branch of the branch, so it equals the branch only for brand-new
+# branches. ≡ (green) = dir slug matches the real branch; ≈ (amber) = diverged
+# (e.g. dir `feature-sadm-1234` vs branch `feature/SADM-1234`). Both gate on
+# `--git-common-dir` ending in `.bare`, so flat checkouts never trigger them.
+[custom.wtmatch]
+description = "≡ when the worktree dir slug matches the branch"
+shell = ["bash", "--noprofile", "--norc"]
+when = '''
+c=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
+[ "$(basename "$c")" = ".bare" ] || exit 1
+[ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" = "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
+'''
+command = "printf '≡'"
+style = "fg:#a6e3a1"
+format = "[$output]($style) "
+
+[custom.wtdiff]
+description = "≈ when the worktree dir slug diverges from the branch"
+shell = ["bash", "--noprofile", "--norc"]
+when = '''
+c=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
+[ "$(basename "$c")" = ".bare" ] || exit 1
+[ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" != "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
+'''
+command = "printf '≈'"
+style = "fg:#f9e2af"
+format = "[$output]($style) "
