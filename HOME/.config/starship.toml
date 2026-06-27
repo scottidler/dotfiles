@@ -1,4 +1,4 @@
-format = """$hostname${custom.path}${custom.wtmatch}${custom.wtdiff}${custom.branch}$all$character"""
+format = """$hostname${custom.path}${custom.branch}$all$character"""
 
 [username]
 disabled = true
@@ -8,26 +8,33 @@ disabled = true
 format = "[$ssh_symbol$hostname]($style) "
 
 # Builtin directory is replaced by custom.path, which renders the full ~-path with
-# the org/repo slug highlighted in-line. Worktree leaf and subpath show dim.
+# the org/repo slug highlighted in-line and the worktree leaf glued on via a ≡/≈
+# connector glyph (see below).
 [directory]
 disabled = true
 
 # Builtin branch is replaced by custom.branch, which suppresses itself in the
-# ≡ case (worktree dir slug already equals the branch).
+# ≡ case (the worktree leaf already is the branch).
 [git_branch]
 disabled = true
 
 [gcloud]
 disabled = true
 
-# --- full path, with the org/repo slug highlighted ---
-# Renders the whole ~-path on one line. The org/repo slug (the two components that
-# name the repo — `tatari-tv/marquee`, or `tatari-tv/klod` for a bare-container
-# worktree) is bold mauve; the prefix, worktree leaf, and subpath are dim grey.
-# Non-repo dirs render the whole path dim. Inline ANSI is safe — starship wraps it
-# in the shell's non-printing markers.
+# --- full path, slug highlighted, worktree leaf glued via ≡/≈ ---
+# Three renderings, distinguished by how the branch attaches to the path:
+#   1. flat clone        ~/repos/tatari-tv/verify          (branch trails via custom.branch)
+#   2. worktree, leaf==branch (≡)  ~/repos/tatari-tv/clyde≡main
+#   3. worktree, leaf!=branch (≈)  ~/repos/tatari-tv/clyde≈feature-x   (branch trails)
+# The ≡/≈ glyph REPLACES the '/' between the org/repo slug and the worktree leaf.
+# Colors: prefix/subpath dim grey; org/repo slug bold mauve; ≡ glyph green with the
+# leaf in a dull mauve (it's the path/repo identity that happens to equal the branch,
+# so it stays in the slug colour family — bright green is reserved for a standalone
+# trailing branch); ≈ glyph + leaf peach (warns the dir name != the branch).
+# Detection gates on --git-common-dir ending in .bare, so flat checkouts never glue.
+# Inline ANSI is safe — starship wraps it in the shell's non-printing markers.
 [custom.path]
-description = "full ~-path with the org/repo slug highlighted"
+description = "full ~-path; org/repo slug highlighted, worktree leaf glued via ≡/≈"
 shell = ["bash", "--noprofile", "--norc"]
 when = "true"
 command = '''
@@ -36,20 +43,25 @@ common=$(git rev-parse --git-common-dir 2>/dev/null)
 P=$(pwd)
 DIM=$(printf '\033[38;2;127;132;156m')
 HI=$(printf '\033[1;38;2;203;166;247m')
+GRN=$(printf '\033[38;2;166;227;161m')
+DMAU=$(printf '\033[38;2;142;116;173m')
+PCH=$(printf '\033[38;2;250;179;135m')
 RST=$(printf '\033[0m')
 tilde() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
 if [ -n "$root" ] && [ "$(basename "$common")" = ".bare" ]; then
     case "$common" in /*) c=$common ;; *) c=$P/$common ;; esac
-    A=$(cd "$(dirname "$c")" && pwd)
+    container=$(cd "$(dirname "$c")" && pwd)
+    pre=$(tilde "$(dirname "$(dirname "$container")")")
+    slug="$(basename "$(dirname "$container")")/$(basename "$container")"
+    leaf=$(basename "$root")
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    sub=$(git rev-parse --show-prefix 2>/dev/null); sub=${sub%/}
+    if [ "$leaf" = "$branch" ]; then glyph="≡"; gcol=$GRN; lcol=$DMAU; else glyph="≈"; gcol=$PCH; lcol=$PCH; fi
+    printf '%s' "${DIM}${pre}/${RST}${HI}${slug}${RST}${gcol}${glyph}${RST}${lcol}${leaf}${RST}${sub:+${DIM}/${sub}${RST}}"
 elif [ -n "$root" ]; then
-    A=$root
-else
-    A=""
-fi
-if [ -n "$A" ]; then
-    pre=$(tilde "$(dirname "$(dirname "$A")")")
-    slug="$(basename "$(dirname "$A")")/$(basename "$A")"
-    post=${P#"$A"}
+    pre=$(tilde "$(dirname "$(dirname "$root")")")
+    slug="$(basename "$(dirname "$root")")/$(basename "$root")"
+    post=${P#"$root"}
     printf '%s' "${DIM}${pre}/${RST}${HI}${slug}${RST}${DIM}${post}${RST}"
 else
     printf '%s' "${DIM}$(tilde "$P")${RST}"
@@ -57,36 +69,12 @@ fi
 '''
 format = "$output "
 
-# --- clone bare-container worktree markers + conditional branch ---
-# ≡ (green) = worktree dir slug matches the real branch (branch hidden, path leaf
-# already shows it); ≈ (amber) = diverged (branch shown). All gate on
-# `--git-common-dir` ending in `.bare`, so flat checkouts never trigger the markers.
-[custom.wtmatch]
-description = "≡ when the worktree dir slug matches the branch"
-shell = ["bash", "--noprofile", "--norc"]
-when = '''
-c=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
-[ "$(basename "$c")" = ".bare" ] || exit 1
-[ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" = "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
-'''
-command = "printf '≡'"
-style = "fg:#a6e3a1"
-format = "[$output]($style) "
-
-[custom.wtdiff]
-description = "≈ when the worktree dir slug diverges from the branch"
-shell = ["bash", "--noprofile", "--norc"]
-when = '''
-c=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
-[ "$(basename "$c")" = ".bare" ] || exit 1
-[ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" != "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
-'''
-command = "printf '≈'"
-style = "fg:#f9e2af"
-format = "[$output]($style) "
-
+# --- trailing branch (cases 1 and 3) ---
+# Shows the real branch (green = the same colour family as a matched worktree leaf,
+# just brighter) for flat clones and for diverged worktrees. Suppressed in the ≡
+# case, where the worktree leaf already renders the branch.
 [custom.branch]
-description = "branch name, except in the ≡ case where the path leaf already is it"
+description = "branch name, except in the ≡ case where the worktree leaf already is it"
 shell = ["bash", "--noprofile", "--norc"]
 when = '''
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 1
@@ -98,5 +86,5 @@ else
 fi
 '''
 command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
-style = "bold purple"
+style = "bold #a6e3a1"
 format = "[$output]($style) "
