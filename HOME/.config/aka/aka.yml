@@ -468,7 +468,10 @@ aliases:
   cC: claude --continue
   ch: claude --model haiku
   cs: claude --model sonnet
-  co|coin: claude --model opus
+  co|co8|coin: claude --model opus
+  co7: claude --model claude-opus-4-7
+  co6: claude --model claude-opus-4-6[1m]
+  co6k: claude --model claude-opus-4-6[200k]
 
   c-p: claude-permit
 
