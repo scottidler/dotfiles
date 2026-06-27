@@ -10,6 +10,23 @@ slack:
   schedule: Mon,Thu 07:00:00
 
 message-filters:
+  # Bots: GitHub/CI notifications via the sre@ group (backstage-tatari[bot])
+  # -> move straight out of the inbox into Bots. Listed first so it wins over
+  # the *@tatari.tv rule below (first match wins). Sweeps the backlog too.
+  - bots:
+      from: 'machine@tatari.tv'
+      label: INBOX
+      action: Bots
+
+  # Leadership: anything from the CEO / SVP Eng -> Star, so it is protected from
+  # culling even when CC'd or sent via a list (the only-me-vip rule misses those).
+  - leadership:
+      from:
+        - 'philip@tatari.tv'
+        - 'mark.weiler@tatari.tv'
+      label: INBOX
+      action: Star
+
   # VIP: direct to me, no CC, from leadership/peers -> Star
   - only-me-vip:
       to: ['scott.idler@tatari.tv']
@@ -27,7 +44,7 @@ message-filters:
         - 'muller@tatari.tv'
         - 'raissa.nebie@tatari.tv'
         - 'bruce@tatari.tv'
-        - 'dan.stynchula@tatari.tv'
+        - 'kwun.choy@tatari.tv'
         - 'mike.sisario@tatari.tv'
         - 'reno@tatari.tv'
         - 'toussaint.minett@tatari.tv'
