@@ -204,3 +204,7 @@ fi
 if [ -f '/home/saidler/Downloads/google-cloud-sdk/completion.zsh.inc' ]; then
     . '/home/saidler/Downloads/google-cloud-sdk/completion.zsh.inc';
 fi
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/saidler/.local/bin:$PATH"

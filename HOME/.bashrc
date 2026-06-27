@@ -165,3 +165,7 @@ if [ -f $HOME/.cargo/env ]; then
 fi
 
 . "/home/saidler/.deno/env"
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/saidler/.local/bin:$PATH"
