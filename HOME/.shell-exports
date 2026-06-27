@@ -22,6 +22,9 @@ export PYENV_ROOT=$HOME/.pyenv
 
 export LESS=-Xr
 
+export EDITOR=nvim
+export VISUAL=nvim
+
 export OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 export ARCH=$(uname -m)
 
