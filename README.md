@@ -45,7 +45,7 @@ Any section flag (`-l`, `-a`, `-g`, etc.) accepts glob patterns to filter items.
 | `apt` | Package names specific to APT |
 | `dnf` | Package names specific to DNF |
 | `pip3` | Items to install via pip3 |
-| `pipx` | Items to install via pipx |
+| `uv-tool` | Python CLIs to install via `uv tool install` |
 | `npm` | Items to install via npm |
 | `flatpak` | Items to install via flatpak |
 | `cargo` | Rust crates to install via cargo |

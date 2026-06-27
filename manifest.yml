@@ -260,17 +260,23 @@ pip3:
   - simplejson
   - sip
   - u-msgpack-python
-pipx:
+uv-tool:
   items:
-  - doit
+  - alembic
+  - cookiecutter
+  - cruft
+  - docling
+  - git+https://github.com/jemmanuele/gslide-mcp.git
+  - ipython
+  - "markitdown[all]"
   - mypy
-  - awscli
-  - pipenv
-  - asciinema
-  - pipupgrade
-  - virtualenv
-  - mps-youtube
-  - docker-compose
+  - ocrmypdf
+  - git+https://github.com/openai/whisper.git
+  - pip-tools
+  - poetry
+  - pytest
+  - yamllint
+  - yt-dlp
 
 npm:
   items:
@@ -470,16 +476,20 @@ script:
       "btop"
     echo "btop installed successfully."
   sweep-repos-cron: |
-    # Weekly sweep of stale Rust build artifacts across ~/repos. Runs
-    # ~/bin/sweep-repos (linked from HOME/bin/sweep-repos), which enumerates
+    # Daily, free-space-driven sweep of Rust build artifacts across ~/repos.
+    # Runs ~/bin/sweep-repos (linked from HOME/bin/sweep-repos), which enumerates
     # each repo's Cargo.toml at reposlug depth and sweeps per repo -- avoiding
     # the `cargo sweep -r ~/repos` walk that stalled on large targets (e.g.
-    # second-brain) and silently made the old cron a no-op. Deletes target/
-    # artifacts older than 14 days. Runs Sundays 03:00.
-    LINE='0 3 * * 0 /home/saidler/bin/sweep-repos --time 14 >> /home/saidler/.cache/sweep-repos.log 2>&1'
+    # second-brain) and silently made the old cron a no-op.
+    #
+    # Watermark mode (--ensure-free 50): a healthy day is a no-op; only when free
+    # space on / drops below 50 GiB does it sweep, escalating 14d -> 7d -> 3d ->
+    # 1d until the floor is restored. Stale artifacts go first; hot repos are
+    # only touched if the milder tiers don't free enough. Runs daily at 03:00.
+    LINE='0 3 * * * /home/saidler/bin/sweep-repos --ensure-free 50 >> /home/saidler/.cache/sweep-repos.log 2>&1'
     mkdir -p /home/saidler/.cache
     (crontab -l 2>/dev/null | grep -vE "cargo-sweep|sweep-repos"; echo "$LINE") | crontab -
-    echo "sweep-repos weekly cron installed"
+    echo "sweep-repos daily watermark cron installed"
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
