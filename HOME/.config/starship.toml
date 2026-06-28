@@ -48,7 +48,16 @@ DMAU=$(printf '\033[38;2;142;116;173m')
 PCH=$(printf '\033[38;2;250;179;135m')
 RST=$(printf '\033[0m')
 tilde() { case "$1" in "$HOME") printf '~' ;; "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
-if [ -n "$root" ] && [ "$(basename "$common")" = ".bare" ]; then
+if [ "$(git rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    # at (or under) the .bare repo itself: no work tree, so keep the slug
+    # highlighted like a repo and let custom.branch render the bare:<default> tag.
+    case "$common" in /*) c=$common ;; *) c=$P/$common ;; esac
+    container=$(cd "$(dirname "$c")" && pwd)
+    pre=$(tilde "$(dirname "$(dirname "$container")")")
+    slug="$(basename "$(dirname "$container")")/$(basename "$container")"
+    sub=${P#"$container"}; sub=${sub#/}
+    printf '%s' "${DIM}${pre}/${RST}${HI}${slug}${RST}${sub:+${DIM}/${sub}${RST}}"
+elif [ -n "$root" ] && [ "$(basename "$common")" = ".bare" ]; then
     case "$common" in /*) c=$common ;; *) c=$P/$common ;; esac
     container=$(cd "$(dirname "$c")" && pwd)
     pre=$(tilde "$(dirname "$(dirname "$container")")")
@@ -69,15 +78,22 @@ fi
 '''
 format = "$output "
 
-# --- trailing branch (cases 1 and 3) ---
-# Shows the real branch (green = the same colour family as a matched worktree leaf,
-# just brighter) for flat clones and for diverged worktrees. Suppressed in the ≡
-# case, where the worktree leaf already renders the branch.
+# --- trailing branch (cases 1 and 3) + the bare root ---
+# Shows the real branch (bold green = the same colour family as a matched worktree
+# leaf, just brighter) for flat clones and for diverged worktrees. Suppressed in the
+# ≡ case, where the worktree leaf already renders the branch. At the .bare repo root
+# there is no work tree — HEAD is just the default-branch symref — so it renders a
+# peach "bare:<default>" tag instead of a green branch that would imply a checkout.
 [custom.branch]
-description = "branch name, except in the ≡ case where the worktree leaf already is it"
+description = "trailing branch; green for checkouts, peach 'bare:<default>' at the bare root"
 shell = ["bash", "--noprofile", "--norc"]
 when = '''
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 1
+git rev-parse --git-dir >/dev/null 2>&1 || exit 1
+# bare root: always render (the command emits the bare:<default> tag)
+[ "$(git rev-parse --is-bare-repository 2>/dev/null)" = "true" ] && exit 0
+# guard on the PRINTED value: --is-inside-work-tree prints "false" yet exits 0 at a
+# bare root, so a plain `|| exit 1` would wrongly pass and show a green "main".
+[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ] || exit 1
 c=$(git rev-parse --git-common-dir 2>/dev/null)
 if [ "$(basename "$c")" = ".bare" ]; then
     [ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" != "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" ]
@@ -85,6 +101,14 @@ else
     true
 fi
 '''
-command = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
-style = "bold #a6e3a1"
-format = "[$output]($style) "
+command = '''
+GRN=$(printf '\033[1;38;2;166;227;161m')
+PCH=$(printf '\033[38;2;250;179;135m')
+RST=$(printf '\033[0m')
+if [ "$(git rev-parse --is-bare-repository 2>/dev/null)" = "true" ]; then
+    printf '%sbare:%s%s' "$PCH" "$(git symbolic-ref --short HEAD 2>/dev/null)" "$RST"
+else
+    printf '%s%s%s' "$GRN" "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" "$RST"
+fi
+'''
+format = "$output "
