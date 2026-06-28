@@ -1,0 +1,3 @@
+[build]
+rustc-wrapper = "/home/saidler/.cargo/bin/sccache"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
