@@ -353,6 +353,8 @@ github:
     - ls-owners
     - ls-stale-branches
     - ls-stale-prs
+    - reposlug
+    - worktree
     link:
       shell-functions.sh: ~/.shell-functions.d/git-tools.sh
   scottidler/kat:
