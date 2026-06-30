@@ -186,6 +186,8 @@ apt:
   - pipx
   # helper tool for finding compiler/linker flags
   - pkg-config
+  # fast drop-in linker; replaces ld for Rust/C++ builds (see ~/.cargo/config.toml)
+  - mold
   # PDF utilities: pdftotext, pdfinfo, pdfimages, etc.
   - poppler-utils
   - portaudio19-dev
