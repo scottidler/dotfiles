@@ -407,6 +407,12 @@ aliases:
   ws|whitespace: whitespace -r
 
   # ========================================
+  # PERSONAL PROJECTS - worktree
+  # ========================================
+
+  wt: worktree
+
+  # ========================================
   # PERSONAL PROJECTS - workweek / readtime
   # ========================================
 
