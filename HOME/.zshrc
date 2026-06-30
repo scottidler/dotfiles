@@ -146,6 +146,14 @@ if hash aka 2>/dev/null; then
     eval "$(aka shell-init zsh)"
 fi
 
+if hash clone 2>/dev/null; then
+    eval "$(command clone shell-init zsh)"
+fi
+
+if hash worktree 2>/dev/null; then
+    eval "$(command worktree shell-init zsh)"
+fi
+
 if [ -f $HOME/.cargo/env ]; then
     source "$HOME/.cargo/env"
 fi

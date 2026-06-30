@@ -355,8 +355,6 @@ github:
     - ls-stale-prs
     - reposlug
     - worktree
-    link:
-      shell-functions.sh: ~/.shell-functions.d/git-tools.sh
   scottidler/kat:
     cargo:
     - ./
@@ -612,7 +610,6 @@ script:
       "https://api.github.com/repos/scottidler/git-tools/releases/latest" \
       "git-tools-v.*-linux.tar.gz"
     tar -xzf git-tools-v.*-linux.tar.gz -C ~/bin/
-    mv ~/bin/shell-functions.sh ~/.shell-functions.d/git-tools.sh
     rm git-tools-v.*-linux.tar.gz
   github-cli: |
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
