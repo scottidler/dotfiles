@@ -216,3 +216,10 @@ fi
 
 # Added by Antigravity CLI installer
 export PATH="/home/saidler/.local/bin:$PATH"
+
+# bun completions
+[ -s "/home/saidler/.bun/_bun" ] && source "/home/saidler/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
