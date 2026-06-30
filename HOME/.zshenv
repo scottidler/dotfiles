@@ -9,3 +9,7 @@ fi
 # gws default persona = work (scott.idler@tatari.tv); gws-home overrides explicitly.
 # Set here (not .zshrc) so the bare `gws` command resolves in non-interactive shells too.
 export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws/work"
+
+# Never write __pycache__/*.pyc anywhere. Keeps source/skill dirs clean; the
+# import-speed cost is negligible for the short-lived scripts run here.
+export PYTHONDONTWRITEBYTECODE=1
