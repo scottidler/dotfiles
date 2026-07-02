@@ -63,22 +63,22 @@ fabric:
   condense-pattern: condense.md
   max-content-chars: 100000
 
-# YouTube ingestion. `slides.enabled: false` is a SURGICAL disable of frame
-# capture only - audio extraction, Whisper transcript, summary, classify and
-# publish all continue unchanged. Disabled 2026-06-28 pending a content-aware
-# filter that only embeds genuine code/architecture-diagram slides.
+# YouTube ingestion. Frame capture was disabled 2026-06-28 pending the
+# content-aware filter; both flipped ON 2026-07-02 (Phase 5 validation) so
+# only slides classified into `keep` categories at/above `min-confidence`
+# are embedded. Audio extraction, Whisper transcript, summary, classify and
+# publish are unaffected by these flags either way.
 # See docs/design/2026-04-29-frame-aware-youtube-ingestion.md and
 # docs/design/2026-06-28-content-aware-slide-filtering.md.
 #
-# content-filter: when enabled (Phase 5), classifies each unique slide run via
-# a vision model and embeds only categories in `keep` at/above `min-confidence`.
-# Taxonomy: architecture-diagram, sequence-diagram, flowchart, code, terminal,
-#            infographic, chart, app-ui, webpage, talking-head, b-roll, title-card, other
+# content-filter taxonomy: architecture-diagram, sequence-diagram, flowchart,
+# code, terminal, infographic, chart, app-ui, webpage, talking-head, b-roll,
+# title-card, other
 youtube:
   slides:
-    enabled: false
+    enabled: true
     content-filter:
-      enabled: false          # flip to true after Phase 5 validation
+      enabled: true
       keep: [architecture-diagram]
       model: ""               # empty = inherit llm.model
       max-vision-concurrency: 4
