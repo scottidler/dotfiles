@@ -494,6 +494,16 @@ script:
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
+  claude-desktop: |
+    # Claude desktop app for Linux (beta) - Ubuntu/Debian.
+    # ref: https://code.claude.com/docs/en/desktop-linux
+    # Installed from Anthropic's apt repo so updates arrive via regular apt upgrades.
+    # 1. Add Anthropic's signing key
+    sudo curl -fsSLo /usr/share/keyrings/claude-desktop-archive-keyring.asc https://downloads.claude.ai/claude-desktop/key.asc
+    # 2. Register the repository
+    echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
+    # 3. Install the package
+    sudo apt update && sudo apt install -y claude-desktop
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
     # instead of editing /etc/sudoers directly. The content is syntax-checked
