@@ -504,6 +504,10 @@ script:
     echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" | sudo tee /etc/apt/sources.list.d/claude-desktop.list
     # 3. Install the package
     sudo apt update && sudo apt install -y claude-desktop
+    # 4. Cowork sandboxes each session in a local VM (qemu-kvm dep) and needs
+    #    /dev/kvm access; without kvm-group membership the sandbox fails to start.
+    #    Idempotent; takes effect on next login (log out/in or `newgrp kvm`).
+    sudo usermod -aG kvm "$(whoami)"
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
     # instead of editing /etc/sudoers directly. The content is syntax-checked
