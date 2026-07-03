@@ -474,12 +474,25 @@ aliases:
   cC: claude --continue
   ch: claude --model haiku
   cs: claude --model sonnet
-  co|co8|coin: claude --model opus
+  co|co8: claude --model opus
   co7: claude --model claude-opus-4-7
   co6: claude --model claude-opus-4-6[1m]
   co6k: claude --model claude-opus-4-6[200k]
+  coin: claude --model fable
 
   c-p: claude-permit
+
+  # ========================================
+  # clyde (Claude session catalog / cost tracking)
+  # ========================================
+  css: clyde session search
+  csl: clyde session ls
+  csr: clyde session resume
+  c$: clyde cost
+  c$y: clyde cost yesterday
+  c$d: clyde cost daily
+  c$w: clyde cost weekly
+  c$m: clyde cost monthly
 
   # ========================================
   # Gemini
