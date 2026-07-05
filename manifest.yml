@@ -532,6 +532,32 @@ script:
     #    /dev/kvm access; without kvm-group membership the sandbox fails to start.
     #    Idempotent; takes effect on next login (log out/in or `newgrp kvm`).
     sudo usermod -aG kvm "$(whoami)"
+  bwrap-userns: |
+    # bwrap (bubblewrap) needs unprivileged user namespaces to build its sandbox
+    # - used by Claude Code's own Linux sandboxing, plus Codex CLI, VSCode, and
+    # Flatpak. Ubuntu 24.04+ sets kernel.apparmor_restrict_unprivileged_userns=1
+    # by default, which blocks unshare(CLONE_NEWUSER) for unprivileged processes
+    # unless a confined AppArmor profile grants the `userns` rule. Without this,
+    # every sandboxed command fails, e.g.:
+    #   bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+    #   apply-seccomp: write /proc/self/setgroups (nested userns is
+    #     capability-restricted; caller must provide CAP_SYS_ADMIN): Permission denied
+    # This grants the userns capability to bwrap ONLY - the same pattern Ubuntu
+    # already uses for chrome/flatpak - rather than disabling
+    # apparmor_restrict_unprivileged_userns system-wide (which would drop the
+    # hardening for every unprivileged process, not just bwrap).
+    # ref: https://github.com/anthropic-experimental/sandbox-runtime/issues/74
+    sudo tee /etc/apparmor.d/bwrap <<'EOF'
+    abi <abi/4.0>,
+    include <tunables/global>
+
+    profile bwrap /usr/bin/bwrap flags=(unconfined) {
+      userns,
+      include if exists <local/bwrap>
+    }
+    EOF
+    sudo apparmor_parser -r /etc/apparmor.d/bwrap
+    echo "bwrap AppArmor userns profile installed"
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
     # instead of editing /etc/sudoers directly. The content is syntax-checked
