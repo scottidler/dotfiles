@@ -5,7 +5,7 @@
 # non-Rust subtrees. `find -maxdepth 3` reads only <root>/<org>/<repo> dir
 # listings and never descends into target/ (depth 4+), so it is fast.
 #
-# Two modes:
+# Three modes:
 #   manual    sweep-repos [--time DAYS]            one pass, remove artifacts
 #                                                  older than DAYS (default 14)
 #   watermark sweep-repos --ensure-free GIB        free-space driven: only acts
@@ -18,6 +18,18 @@
 #                                                  sweeps in escalating tiers
 #                                                  (gentlest first) until the
 #                                                  floor is restored.
+#   maxsize   sweep-repos --maxsize SIZE            unconditional pass, caps
+#                                                  every repo's target/ at SIZE
+#                                                  (e.g. 5GB) by trimming its
+#                                                  oldest artifacts. --time only
+#                                                  catches artifacts that have
+#                                                  gone stale by mtime, which
+#                                                  barely touches repos rebuilt
+#                                                  daily (measured: 4.4GiB vs.
+#                                                  ~205GiB reclaimed by maxsize
+#                                                  across the same repos) --
+#                                                  this mode caps bloat in
+#                                                  actively-built repos instead.
 #
 # BUG FIXED 2026-07-04: watermark mode used to check free space on ROOT's
 # filesystem (~/repos, which lives on /). relocate-targets moved every repo's
@@ -46,6 +58,7 @@ DAYS=14
 ROOT="${HOME}/repos"
 TARGET_DISK="/media/saidler/intel-480gb-ssd"
 ENSURE_FREE=""
+MAXSIZE=""
 DRY_RUN=()
 
 # Escalation ladder for watermark mode: gentlest (most days = fewest artifacts
@@ -54,12 +67,15 @@ TIERS=(14 7 3 1)
 
 usage() {
   cat >&2 <<'EOF'
-usage: sweep-repos [--time DAYS] [--ensure-free GIB] [--root DIR] [--target-disk DIR] [--dry-run]
+usage: sweep-repos [--time DAYS | --ensure-free GIB | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dry-run]
   --time DAYS        manual mode: remove build artifacts older than DAYS (default: 14)
   --ensure-free GIB  watermark mode: sweep only when free space on the
                      target-disk filesystem is below GIB, escalating
                      14d -> 7d -> 3d -> 1d until the floor is restored
                      (overrides --time)
+  --maxsize SIZE     maxsize mode: unconditionally cap every repo's target/ at
+                     SIZE (e.g. 5GB), trimming oldest artifacts (overrides
+                     --time and --ensure-free)
   --root DIR         search root to enumerate repos under (default: ~/repos)
   --target-disk DIR  filesystem to check free space on -- must match where
                      relocate-targets sends target/ dirs
@@ -73,6 +89,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --time)        DAYS="$2"; shift 2 ;;
     --ensure-free) ENSURE_FREE="$2"; shift 2 ;;
+    --maxsize)     MAXSIZE="$2"; shift 2 ;;
     --root)        ROOT="$2"; shift 2 ;;
     --target-disk) TARGET_DISK="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=(--dry-run); shift ;;
@@ -122,6 +139,26 @@ sweep_pass() {
       || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
   done < <(find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 | sort -z)
 }
+
+# Cap every built repo's target/ at SIZE, unconditionally (no free-space check).
+sweep_maxsize_pass() {
+  local size="$1" count=0 manifest repo
+  while IFS= read -r -d '' manifest; do
+    repo="$(dirname "${manifest}")"
+    [[ -d "${repo}/target" ]] || continue
+    count=$((count + 1))
+    echo "sweep-repos:   [${count}] --maxsize ${size} ${repo}" >&2
+    cargo sweep "${DRY_RUN[@]}" --maxsize "${size}" "${repo}" \
+      || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
+  done < <(find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 | sort -z)
+}
+
+if [[ -n "${MAXSIZE}" ]]; then
+  echo "sweep-repos: maxsize mode: root=${ROOT} cap=${MAXSIZE}${DRY_RUN:+ (dry-run)}" >&2
+  sweep_maxsize_pass "${MAXSIZE}"
+  echo "sweep-repos: done" >&2
+  exit 0
+fi
 
 if [[ -n "${ENSURE_FREE}" ]]; then
   [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }

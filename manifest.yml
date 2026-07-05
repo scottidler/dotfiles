@@ -484,13 +484,37 @@ script:
     # second-brain) and silently made the old cron a no-op.
     #
     # Watermark mode (--ensure-free 50): a healthy day is a no-op; only when free
-    # space on / drops below 50 GiB does it sweep, escalating 14d -> 7d -> 3d ->
-    # 1d until the floor is restored. Stale artifacts go first; hot repos are
-    # only touched if the milder tiers don't free enough. Runs daily at 03:00.
+    # space on TARGET_DISK (the dedicated SSD relocate-targets writes to, NOT /)
+    # drops below 50 GiB does it sweep, escalating 14d -> 7d -> 3d -> 1d until
+    # the floor is restored. Stale artifacts go first; hot repos are only
+    # touched if the milder tiers don't free enough. Runs daily at 03:00.
+    #
+    # The crontab filter below matches only this cron's own `--ensure-free`
+    # line, not sweep-repos-maxsize-cron's `--maxsize` line -- each install is
+    # scoped to its own entry so neither wipes the other out.
     LINE='0 3 * * * /home/saidler/bin/sweep-repos --ensure-free 50 >> /home/saidler/.cache/sweep-repos.log 2>&1'
     mkdir -p /home/saidler/.cache
-    (crontab -l 2>/dev/null | grep -vE "cargo-sweep|sweep-repos"; echo "$LINE") | crontab -
+    (crontab -l 2>/dev/null | grep -vF "sweep-repos --ensure-free"; echo "$LINE") | crontab -
     echo "sweep-repos daily watermark cron installed"
+  sweep-repos-maxsize-cron: |
+    # Weekly, unconditional cap on every repo's target/ size across ~/repos.
+    # Runs ~/bin/sweep-repos --maxsize, which trims each repo's target/ down to
+    # SIZE regardless of free space or artifact age.
+    #
+    # --time (used by sweep-repos-cron) only catches artifacts stale by mtime,
+    # which barely touches repos rebuilt daily -- measured 4.4GiB reclaimed vs.
+    # ~205GiB with --maxsize across the same repos, because active repos keep
+    # refreshing mtimes on old artifacts through incremental builds. This cron
+    # exists to cap that bloat proactively instead of waiting for the daily
+    # watermark to trip. Runs midweek (Wednesday) at 03:00, same time as the
+    # daily cron.
+    #
+    # The crontab filter below matches only this cron's own `--maxsize` line,
+    # not sweep-repos-cron's `--ensure-free` line -- see that entry's comment.
+    LINE='0 3 * * 3 /home/saidler/bin/sweep-repos --maxsize 5GB >> /home/saidler/.cache/sweep-repos.log 2>&1'
+    mkdir -p /home/saidler/.cache
+    (crontab -l 2>/dev/null | grep -vF "sweep-repos --maxsize"; echo "$LINE") | crontab -
+    echo "sweep-repos midweek maxsize cron installed"
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
