@@ -5,7 +5,7 @@
 # non-Rust subtrees. `find -maxdepth 3` reads only <root>/<org>/<repo> dir
 # listings and never descends into target/ (depth 4+), so it is fast.
 #
-# Three modes:
+# Four modes:
 #   manual    sweep-repos [--time DAYS]            one pass, remove artifacts
 #                                                  older than DAYS (default 14)
 #   watermark sweep-repos --ensure-free GIB        free-space driven: only acts
@@ -17,19 +17,25 @@
 #                                                  filesystem) is below GIB, then
 #                                                  sweeps in escalating tiers
 #                                                  (gentlest first) until the
-#                                                  floor is restored.
-#   maxsize   sweep-repos --maxsize SIZE            unconditional pass, caps
-#                                                  every repo's target/ at SIZE
-#                                                  (e.g. 5GB) by trimming its
-#                                                  oldest artifacts. --time only
-#                                                  catches artifacts that have
-#                                                  gone stale by mtime, which
-#                                                  barely touches repos rebuilt
-#                                                  daily (measured: 4.4GiB vs.
-#                                                  ~205GiB reclaimed by maxsize
-#                                                  across the same repos) --
-#                                                  this mode caps bloat in
-#                                                  actively-built repos instead.
+#                                                  floor is restored, falling
+#                                                  back to an unconditional
+#                                                  per-repo cap if age-based
+#                                                  sweeping alone isn't enough.
+#   watch     sweep-repos --ensure-free GIB --watch SECS
+#                                                  same as watermark mode, but
+#                                                  loops forever, checking every
+#                                                  SECS. This is the reactive
+#                                                  mode: meant to run as a
+#                                                  long-lived systemd --user
+#                                                  service instead of a cron,
+#                                                  so a sudden build spike gets
+#                                                  caught within seconds
+#                                                  instead of waiting for the
+#                                                  next scheduled tick.
+#   maxsize   sweep-repos --maxsize SIZE            unconditional one-shot pass,
+#                                                  caps every repo's target/ at
+#                                                  SIZE (e.g. 5GB) by trimming
+#                                                  its oldest artifacts.
 #
 # BUG FIXED 2026-07-04: watermark mode used to check free space on ROOT's
 # filesystem (~/repos, which lives on /). relocate-targets moved every repo's
@@ -37,14 +43,28 @@
 # the watermark never tripped -- it logged "nothing to do" every day while the
 # SSD silently filled to 100%. Fixed by checking TARGET_DISK instead.
 #
-# The daily cron uses watermark mode so a healthy day is a no-op and the fuller
-# the disk gets, the harder it sweeps. Tiers escalate 14d -> 7d -> 3d -> 1d:
-# stale artifacts go first, hot repos (e.g. second-brain, loopr-v5) are only
-# touched if the milder tiers don't free enough.
+# BUG FIXED 2026-07-05: --time-based tiers (even the harshest, 1d) can't touch
+# repos rebuilt daily -- measured 4.4GiB reclaimed vs. ~205GiB reclaimed by
+# --maxsize across the same repos, because active repos keep refreshing
+# mtimes on old artifacts through incremental builds. A separate weekly
+# --maxsize cron used to paper over this, but that only ran once a week while
+# hot repos (second-brain, marquee) regrew 70GiB+ in the gap. Folded --maxsize
+# into watermark mode itself as the last-resort tier: if the age-based ladder
+# doesn't restore the floor, cap every repo unconditionally before giving up.
+# This is what makes watch mode a real reactive fix instead of a faster-ticking
+# version of the same incomplete remediation.
+#
+# REACTIVE, NOT CALENDAR-DRIVEN (2026-07-05): a fixed cron schedule (daily,
+# weekly) always has a gap where the disk can silently fill between ticks --
+# that gap is what caused two separate 0-byte incidents in one day. `--watch`
+# replaces the daily/weekly crons with one continuously-running check: cheap
+# when healthy (a single `df` call), and reacts within one poll interval the
+# moment free space actually drops, instead of waiting for the next scheduled
+# run. Installed as the sweep-repos-watchdog systemd --user service.
 #
 # Managed by scottidler/dotfiles via manifest (link: HOME -> $HOME). Edit the
-# repo copy, not the ~/bin symlink. The cron is the `sweep-repos-cron` entry in
-# manifest.yml's script: section.
+# repo copy, not the ~/bin symlink. The service is the `sweep-repos-watchdog`
+# entry in manifest.yml's script: section.
 set -euo pipefail
 
 # cron runs with a minimal PATH (/usr/bin:/bin) that omits ~/.cargo/bin, so the
@@ -59,21 +79,34 @@ ROOT="${HOME}/repos"
 TARGET_DISK="/media/saidler/intel-480gb-ssd"
 ENSURE_FREE=""
 MAXSIZE=""
+WATCH=""
 DRY_RUN=()
 
 # Escalation ladder for watermark mode: gentlest (most days = fewest artifacts
 # removed) first, harshest last. Only descend a tier if the floor isn't yet met.
 TIERS=(14 7 3 1)
 
+# Last-resort cap used inside watermark/watch mode once the age-based ladder
+# above is exhausted and the floor still isn't restored -- age stops mattering
+# at that point, every repo's target/ (even one rebuilt seconds ago) gets
+# capped. Same value the old standalone weekly maxsize cron used.
+FALLBACK_CAP="5GB"
+
 usage() {
   cat >&2 <<'EOF'
-usage: sweep-repos [--time DAYS | --ensure-free GIB | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dry-run]
+usage: sweep-repos [--time DAYS | --ensure-free GIB [--watch SECS] | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dry-run]
   --time DAYS        manual mode: remove build artifacts older than DAYS (default: 14)
   --ensure-free GIB  watermark mode: sweep only when free space on the
                      target-disk filesystem is below GIB, escalating
-                     14d -> 7d -> 3d -> 1d until the floor is restored
+                     14d -> 7d -> 3d -> 1d, then an unconditional
+                     ${FALLBACK_CAP} per-repo cap, until the floor is restored
                      (overrides --time)
-  --maxsize SIZE     maxsize mode: unconditionally cap every repo's target/ at
+  --watch SECS       with --ensure-free: don't exit after one check -- loop
+                     forever, re-checking every SECS. Meant to run as a
+                     long-lived service (see sweep-repos-watchdog.service)
+                     instead of a cron, so a sudden build spike is caught
+                     within one poll interval instead of the next scheduled tick.
+  --maxsize SIZE     one-shot mode: unconditionally cap every repo's target/ at
                      SIZE (e.g. 5GB), trimming oldest artifacts (overrides
                      --time and --ensure-free)
   --root DIR         search root to enumerate repos under (default: ~/repos)
@@ -91,6 +124,7 @@ while [[ $# -gt 0 ]]; do
     --time)        DAYS="$2"; shift 2 ;;
     --ensure-free) ENSURE_FREE="$2"; shift 2 ;;
     --maxsize)     MAXSIZE="$2"; shift 2 ;;
+    --watch)       WATCH="$2"; shift 2 ;;
     --root)        ROOT="$2"; shift 2 ;;
     --target-disk) TARGET_DISK="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=(--dry-run); shift ;;
@@ -98,6 +132,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "sweep-repos: unknown arg: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+if [[ -n "${WATCH}" && -z "${ENSURE_FREE}" ]]; then
+  echo "sweep-repos: --watch requires --ensure-free" >&2
+  exit 2
+fi
 
 # Best-effort desktop toast. Works from cron by pointing at the user's session
 # bus (cron has no DBUS_SESSION_BUS_ADDRESS). Never fails the script.
@@ -129,19 +168,36 @@ free_gib() {
 # Plain repos: <root>/<org>/<repo>/Cargo.toml (exactly 3 dirs deep).
 # Worktree-managed repos (the `worktree` CLI's bare+worktree layout, e.g.
 # second-brain, marquee): <root>/<org>/<repo>/.bare marks the container, and
-# each worktree (main, a feature branch, ...) has its own Cargo.toml one level
-# deeper -- <root>/<org>/<repo>/<worktree>/Cargo.toml. BUG FIXED 2026-07-05:
-# the plain -maxdepth 3 find never saw these, so second-brain and marquee
-# (146GiB combined, ~45% of the SSD) were invisible to every sweep mode and
-# grew unbounded -- this is what actually drained the disk to 0 bytes.
-# Both finds stay shallow (maxdepth 3, then maxdepth 2 from a confirmed
-# bare-repo dir) so neither ever descends into target/ -> fast, no stall.
+# each worktree (main, a feature branch, ...) has its own Cargo.toml, but NOT
+# necessarily one directory level down -- worktree paths are whatever git
+# recorded them as, so we ask git itself (`worktree list --porcelain` against
+# the .bare gitdir) instead of guessing a fixed depth. This is the ground
+# truth the `worktree` CLI itself relies on, so it can't drift out of sync
+# with however worktrees actually get created or moved.
+#
+# BUG FIXED 2026-07-05: the plain -maxdepth 3 find never saw worktree repos at
+# all, so second-brain and marquee (146GiB combined, ~45% of the SSD) were
+# invisible to every sweep mode and grew unbounded -- this is what actually
+# drained the disk to 0 bytes.
+#
+# The outer find stays shallow (maxdepth 3, just enough to spot each `.bare`
+# container) so it never descends into target/ -> fast, no stall.
 list_manifests() {
   {
     find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0
     find "${ROOT}" -mindepth 3 -maxdepth 3 -name .bare -type d -print0 \
       | while IFS= read -r -d '' bare; do
-          find "$(dirname "${bare}")" -mindepth 2 -maxdepth 2 -name Cargo.toml -type f -print0
+          git --git-dir="${bare}" worktree list --porcelain 2>/dev/null \
+            | awk '/^worktree /{print $2}' \
+            | while IFS= read -r wt; do
+                # `if` not `[[ ]] &&`: under set -e, a false test on the LHS of
+                # `&&` makes the whole statement's exit status 1 and kills this
+                # loop right there -- and every repo's OWN bare-container entry
+                # (which never has a Cargo.toml) is always the first line of its
+                # `worktree list` output, so this silently truncated enumeration
+                # after only 2 of 18 worktree repos before it was caught 2026-07-05.
+                if [[ -f "${wt}/Cargo.toml" ]]; then printf '%s\0' "${wt}/Cargo.toml"; fi
+              done
         done
   } | sort -z
 }
@@ -180,13 +236,16 @@ if [[ -n "${MAXSIZE}" ]]; then
   exit 0
 fi
 
-if [[ -n "${ENSURE_FREE}" ]]; then
-  [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }
+# One watermark check: age-based tiers first (gentlest), then an unconditional
+# per-repo cap as the last resort. Returns 0 once the floor is restored (or
+# was never breached), 1 if still below floor after every tier.
+run_watermark() {
+  local free
   free="$(free_gib)"
-  echo "sweep-repos: watermark mode: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
+  echo "sweep-repos: watermark: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
-    exit 0
+    return 0
   fi
   for tier in "${TIERS[@]}"; do
     echo "sweep-repos: ${free}GiB < ${ENSURE_FREE}GiB floor; sweeping artifacts older than ${tier}d" >&2
@@ -198,11 +257,38 @@ if [[ -n "${ENSURE_FREE}" ]]; then
     free="$(free_gib)"
     if (( free >= ENSURE_FREE )); then
       echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${tier}d tier; done" >&2
-      exit 0
+      return 0
     fi
   done
-  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after the 1d tier; consider a larger target disk or cargo sweep --maxsize on the biggest repos" >&2
-  [[ ${#DRY_RUN[@]} -eq 0 ]] && toast critical "sweep-repos: disk still low" "Swept down to the 1d tier and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Manual cleanup needed."
+  echo "sweep-repos: ${free}GiB < ${ENSURE_FREE}GiB after the 1d tier; age doesn't matter anymore, capping every repo's target/ at ${FALLBACK_CAP}" >&2
+  sweep_maxsize_pass "${FALLBACK_CAP}"
+  if [[ ${#DRY_RUN[@]} -gt 0 ]]; then
+    echo "sweep-repos: (dry-run) done" >&2
+    return 0
+  fi
+  free="$(free_gib)"
+  if (( free >= ENSURE_FREE )); then
+    echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${FALLBACK_CAP} cap; done" >&2
+    return 0
+  fi
+  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- the disk is genuinely too small for the current checked-out footprint" >&2
+  toast critical "sweep-repos: disk still low" "Capped every repo at ${FALLBACK_CAP} and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Needs a bigger disk, or prune worktrees you're done with."
+  return 1
+}
+
+if [[ -n "${ENSURE_FREE}" ]]; then
+  [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }
+
+  if [[ -n "${WATCH}" ]]; then
+    [[ "${WATCH}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --watch must be a positive integer (seconds)" >&2; exit 2; }
+    echo "sweep-repos: watch mode: checking every ${WATCH}s, floor=${ENSURE_FREE}GiB on ${TARGET_DISK}" >&2
+    while true; do
+      run_watermark || true
+      sleep "${WATCH}"
+    done
+  fi
+
+  run_watermark
   exit 0
 fi
 
