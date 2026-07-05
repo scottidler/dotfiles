@@ -9,11 +9,21 @@
 #   manual    sweep-repos [--time DAYS]            one pass, remove artifacts
 #                                                  older than DAYS (default 14)
 #   watermark sweep-repos --ensure-free GIB        free-space driven: only acts
-#                                                  when free space on the root's
-#                                                  filesystem is below GIB, then
+#                                                  when free space on the
+#                                                  target-disk filesystem (where
+#                                                  relocate-targets puts each
+#                                                  repo's target/, default the
+#                                                  dedicated SSD -- NOT ~/repos'
+#                                                  filesystem) is below GIB, then
 #                                                  sweeps in escalating tiers
 #                                                  (gentlest first) until the
 #                                                  floor is restored.
+#
+# BUG FIXED 2026-07-04: watermark mode used to check free space on ROOT's
+# filesystem (~/repos, which lives on /). relocate-targets moved every repo's
+# target/ onto a dedicated SSD via symlink, so / always had plenty of room and
+# the watermark never tripped -- it logged "nothing to do" every day while the
+# SSD silently filled to 100%. Fixed by checking TARGET_DISK instead.
 #
 # The daily cron uses watermark mode so a healthy day is a no-op and the fuller
 # the disk gets, the harder it sweeps. Tiers escalate 14d -> 7d -> 3d -> 1d:
@@ -34,6 +44,7 @@ export PATH="${HOME}/.cargo/bin:${PATH}"
 
 DAYS=14
 ROOT="${HOME}/repos"
+TARGET_DISK="/media/saidler/intel-480gb-ssd"
 ENSURE_FREE=""
 DRY_RUN=()
 
@@ -43,12 +54,16 @@ TIERS=(14 7 3 1)
 
 usage() {
   cat >&2 <<'EOF'
-usage: sweep-repos [--time DAYS] [--ensure-free GIB] [--root DIR] [--dry-run]
+usage: sweep-repos [--time DAYS] [--ensure-free GIB] [--root DIR] [--target-disk DIR] [--dry-run]
   --time DAYS        manual mode: remove build artifacts older than DAYS (default: 14)
-  --ensure-free GIB  watermark mode: sweep only when free space on the root's
-                     filesystem is below GIB, escalating 14d -> 7d -> 3d -> 1d
-                     until the floor is restored (overrides --time)
-  --root DIR         search root (default: ~/repos)
+  --ensure-free GIB  watermark mode: sweep only when free space on the
+                     target-disk filesystem is below GIB, escalating
+                     14d -> 7d -> 3d -> 1d until the floor is restored
+                     (overrides --time)
+  --root DIR         search root to enumerate repos under (default: ~/repos)
+  --target-disk DIR  filesystem to check free space on -- must match where
+                     relocate-targets sends target/ dirs
+                     (default: /media/saidler/intel-480gb-ssd)
   --dry-run          report only; delete nothing
 Enumerates <root>/<org>/<repo>/Cargo.toml and runs cargo-sweep per repo.
 EOF
@@ -59,6 +74,7 @@ while [[ $# -gt 0 ]]; do
     --time)        DAYS="$2"; shift 2 ;;
     --ensure-free) ENSURE_FREE="$2"; shift 2 ;;
     --root)        ROOT="$2"; shift 2 ;;
+    --target-disk) TARGET_DISK="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=(--dry-run); shift ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "sweep-repos: unknown arg: $1" >&2; usage; exit 2 ;;
@@ -83,9 +99,12 @@ if ! command -v cargo-sweep >/dev/null 2>&1; then
   exit 1
 fi
 
-# Available GiB on the filesystem that holds ROOT (integer, truncated).
+# Available GiB on TARGET_DISK -- where relocate-targets actually puts each
+# repo's target/ dir. This is deliberately NOT ROOT's filesystem: ROOT (~/repos)
+# stays roomy forever once targets are relocated, so checking it here would
+# repeat the bug that let the SSD silently fill to 100% (see header comment).
 free_gib() {
-  df -B1 --output=avail "${ROOT}" 2>/dev/null | awk 'NR==2 {printf "%d", $1/1073741824}'
+  df -B1 --output=avail "${TARGET_DISK}" 2>/dev/null | awk 'NR==2 {printf "%d", $1/1073741824}'
 }
 
 # Sweep every built repo under ROOT with a single --time window.
@@ -107,7 +126,7 @@ sweep_pass() {
 if [[ -n "${ENSURE_FREE}" ]]; then
   [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }
   free="$(free_gib)"
-  echo "sweep-repos: watermark mode: ${free}GiB free, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
+  echo "sweep-repos: watermark mode: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
     exit 0
@@ -125,8 +144,8 @@ if [[ -n "${ENSURE_FREE}" ]]; then
       exit 0
     fi
   done
-  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) after the 1d tier; consider relocating CARGO_TARGET_DIR to a larger disk" >&2
-  [[ ${#DRY_RUN[@]} -eq 0 ]] && toast critical "sweep-repos: disk still low" "Swept down to the 1d tier and / still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Manual cleanup or CARGO_TARGET_DIR relocation needed."
+  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after the 1d tier; consider a larger target disk or cargo sweep --maxsize on the biggest repos" >&2
+  [[ ${#DRY_RUN[@]} -eq 0 ]] && toast critical "sweep-repos: disk still low" "Swept down to the 1d tier and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Manual cleanup needed."
   exit 0
 fi
 
