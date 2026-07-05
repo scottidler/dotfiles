@@ -236,6 +236,12 @@ if [[ -n "${MAXSIZE}" ]]; then
   exit 0
 fi
 
+# Set once a "still low" toast has fired, so --watch mode (checking every few
+# seconds) sends ONE notification per low-disk episode instead of re-spamming
+# it every poll interval for as long as the disk stays below floor. Reset the
+# moment the floor is restored, so a later, distinct episode still alerts.
+LOW_NOTIFIED=0
+
 # One watermark check: age-based tiers first (gentlest), then an unconditional
 # per-repo cap as the last resort. Returns 0 once the floor is restored (or
 # was never breached), 1 if still below floor after every tier.
@@ -245,6 +251,7 @@ run_watermark() {
   echo "sweep-repos: watermark: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
+    LOW_NOTIFIED=0
     return 0
   fi
   for tier in "${TIERS[@]}"; do
@@ -257,6 +264,7 @@ run_watermark() {
     free="$(free_gib)"
     if (( free >= ENSURE_FREE )); then
       echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${tier}d tier; done" >&2
+      LOW_NOTIFIED=0
       return 0
     fi
   done
@@ -269,10 +277,14 @@ run_watermark() {
   free="$(free_gib)"
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${FALLBACK_CAP} cap; done" >&2
+    LOW_NOTIFIED=0
     return 0
   fi
   echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- the disk is genuinely too small for the current checked-out footprint" >&2
-  toast critical "sweep-repos: disk still low" "Capped every repo at ${FALLBACK_CAP} and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Needs a bigger disk, or prune worktrees you're done with."
+  if (( ! LOW_NOTIFIED )); then
+    toast critical "sweep-repos: disk still low" "Capped every repo at ${FALLBACK_CAP} and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Needs a bigger disk, or prune worktrees you're done with."
+    LOW_NOTIFIED=1
+  fi
   return 1
 }
 
