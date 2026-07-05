@@ -497,7 +497,7 @@ script:
     (crontab -l 2>/dev/null | grep -vF "sweep-repos --ensure-free"; echo "$LINE") | crontab -
     echo "sweep-repos daily watermark cron installed"
   sweep-repos-maxsize-cron: |
-    # Weekly, unconditional cap on every repo's target/ size across ~/repos.
+    # Daily, unconditional cap on every repo's target/ size across ~/repos.
     # Runs ~/bin/sweep-repos --maxsize, which trims each repo's target/ down to
     # SIZE regardless of free space or artifact age.
     #
@@ -506,15 +506,21 @@ script:
     # ~205GiB with --maxsize across the same repos, because active repos keep
     # refreshing mtimes on old artifacts through incremental builds. This cron
     # exists to cap that bloat proactively instead of waiting for the daily
-    # watermark to trip. Runs midweek (Wednesday) at 03:00, same time as the
-    # daily cron.
+    # watermark to trip.
+    #
+    # Originally weekly (Wednesday). Bumped to daily 2026-07-05: the target
+    # disk (intel-480gb-ssd) hit 0 bytes free with heavy hitters like
+    # second-brain and marquee sitting at 70-75GiB each -- both rebuilt daily,
+    # so a once-a-week cap let them regrow to that size in the gap. Runs at
+    # 03:30, 30 minutes after the ensure-free watermark cron, so the two never
+    # run cargo-sweep concurrently against the same target dirs.
     #
     # The crontab filter below matches only this cron's own `--maxsize` line,
     # not sweep-repos-cron's `--ensure-free` line -- see that entry's comment.
-    LINE='0 3 * * 3 /home/saidler/bin/sweep-repos --maxsize 5GB >> /home/saidler/.cache/sweep-repos.log 2>&1'
+    LINE='30 3 * * * /home/saidler/bin/sweep-repos --maxsize 5GB >> /home/saidler/.cache/sweep-repos.log 2>&1'
     mkdir -p /home/saidler/.cache
     (crontab -l 2>/dev/null | grep -vF "sweep-repos --maxsize"; echo "$LINE") | crontab -
-    echo "sweep-repos midweek maxsize cron installed"
+    echo "sweep-repos daily maxsize cron installed"
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat
