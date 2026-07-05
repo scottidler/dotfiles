@@ -81,7 +81,8 @@ usage: sweep-repos [--time DAYS | --ensure-free GIB | --maxsize SIZE] [--root DI
                      relocate-targets sends target/ dirs
                      (default: /media/saidler/intel-480gb-ssd)
   --dry-run          report only; delete nothing
-Enumerates <root>/<org>/<repo>/Cargo.toml and runs cargo-sweep per repo.
+Enumerates <root>/<org>/<repo>/Cargo.toml (and, for worktree-managed repos,
+<root>/<org>/<repo>/<worktree>/Cargo.toml) and runs cargo-sweep per repo.
 EOF
 }
 
@@ -124,9 +125,28 @@ free_gib() {
   df -B1 --output=avail "${TARGET_DISK}" 2>/dev/null | awk 'NR==2 {printf "%d", $1/1073741824}'
 }
 
+# Enumerate every repo-root Cargo.toml under ROOT.
+# Plain repos: <root>/<org>/<repo>/Cargo.toml (exactly 3 dirs deep).
+# Worktree-managed repos (the `worktree` CLI's bare+worktree layout, e.g.
+# second-brain, marquee): <root>/<org>/<repo>/.bare marks the container, and
+# each worktree (main, a feature branch, ...) has its own Cargo.toml one level
+# deeper -- <root>/<org>/<repo>/<worktree>/Cargo.toml. BUG FIXED 2026-07-05:
+# the plain -maxdepth 3 find never saw these, so second-brain and marquee
+# (146GiB combined, ~45% of the SSD) were invisible to every sweep mode and
+# grew unbounded -- this is what actually drained the disk to 0 bytes.
+# Both finds stay shallow (maxdepth 3, then maxdepth 2 from a confirmed
+# bare-repo dir) so neither ever descends into target/ -> fast, no stall.
+list_manifests() {
+  {
+    find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0
+    find "${ROOT}" -mindepth 3 -maxdepth 3 -name .bare -type d -print0 \
+      | while IFS= read -r -d '' bare; do
+          find "$(dirname "${bare}")" -mindepth 2 -maxdepth 2 -name Cargo.toml -type f -print0
+        done
+  } | sort -z
+}
+
 # Sweep every built repo under ROOT with a single --time window.
-# Repo-root manifests live exactly two dirs deep: <root>/<org>/<repo>/Cargo.toml.
-# -maxdepth 3 stops find from descending into target/ (depth 4+) -> fast, no stall.
 sweep_pass() {
   local days="$1" count=0 manifest repo
   while IFS= read -r -d '' manifest; do
@@ -137,7 +157,7 @@ sweep_pass() {
     echo "sweep-repos:   [${count}] --time ${days}d ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --time "${days}" "${repo}" \
       || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
-  done < <(find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 | sort -z)
+  done < <(list_manifests)
 }
 
 # Cap every built repo's target/ at SIZE, unconditionally (no free-space check).
@@ -150,7 +170,7 @@ sweep_maxsize_pass() {
     echo "sweep-repos:   [${count}] --maxsize ${size} ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --maxsize "${size}" "${repo}" \
       || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
-  done < <(find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 | sort -z)
+  done < <(list_manifests)
 }
 
 if [[ -n "${MAXSIZE}" ]]; then
