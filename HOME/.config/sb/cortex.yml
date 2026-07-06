@@ -15,7 +15,7 @@ vault:
     - "system/design-*.md"
     - "notes/ai/**"
 
-log-level: debug
+log-level: info
 
 schema:
   domains: [ai, tech, football, work, writing, music, spanish, life, homelab, diy, resources, system]
@@ -131,6 +131,14 @@ daemon:
   poll-interval: 300
   daily-at: "M-F 07:00"
   weekly-at: "Sun 22:00"
+  # Rayon cap emitted into the installed unit as RAYON_NUM_THREADS (also bounds
+  # candle's embedding fan-out). ~nproc/4 on this box.
+  rayon-threads: 8
+  # Secret bootstrap: command stdout captured into env-file via ExecStartPre,
+  # then loaded with EnvironmentFile. Reproduces the pre-existing hand-added unit lines.
+  env-bootstrap:
+    command: /home/saidler/.cargo/bin/manifest age decrypt /home/saidler/repos/scottidler/keep/.secrets -f env
+    env-file: /run/user/1000/cortex.env
   actions:
     classify:
       enable: true
