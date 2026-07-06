@@ -158,3 +158,14 @@ migration:
     - system
     - journal
     - templates
+
+# ---------------------------------------------------------------------------
+# Distillation feature toggles (all default-on; set false to disable a feature)
+# ---------------------------------------------------------------------------
+distill:
+  # Re-enabled 2026-07-05: the dom_smoothie clean-fetch + source-gated
+  # quality-gate fix landed in v0.9.3 (see docs/design/2026-07-05-article-transcript-boilerplate.md).
+  article-transcript: true
+  slide-append: true
+  capture-note: true
+  propose-tags: true
