@@ -160,6 +160,16 @@ migration:
     - templates
 
 # ---------------------------------------------------------------------------
+# Daemon install settings: secret bootstrap for the systemd unit's
+# ExecStartPre/EnvironmentFile. Previously hardcoded in service::install_systemd;
+# now config-driven to match cortex.yml's daemon.env-bootstrap.
+# ---------------------------------------------------------------------------
+daemon:
+  env-bootstrap:
+    command: /home/saidler/.cargo/bin/manifest age decrypt /home/saidler/repos/scottidler/keep/.secrets -f env
+    env-file: /run/user/1000/borg.env
+
+# ---------------------------------------------------------------------------
 # Distillation feature toggles (all default-on; set false to disable a feature)
 # ---------------------------------------------------------------------------
 distill:
