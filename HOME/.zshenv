@@ -22,12 +22,32 @@ export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws/work"
 # (see keep/.secrets/gh-token.age -> github-pat-work.age), so home must override
 # GH_TOKEN itself here, not just GH_CONFIG_DIR. Set here (not .zshrc) so bare
 # `gh` resolves correctly in non-interactive shells too.
+#
+# The $PWD heuristic answers "which dir am I in," but the real question is "which
+# org does this call target." They diverge when a call hits a tatari-tv resource
+# from outside ~/repos/tatari-tv/* (e.g. `gh api repos/tatari-tv/marquee` from a
+# scratch dir) -> the *) branch forces home and the call 404s like "no access."
+# GH_PERSONA is an explicit per-invocation override for exactly that case; it's a
+# plain work/home toggle (not a token/secret name, so it doesn't trip the
+# secret-echo guard and reads clearly in transcripts). Both branches set GH_TOKEN
+# explicitly so identity never depends on the ambient GH_TOKEN default.
+# Usage: `GH_PERSONA=work gh api repos/tatari-tv/marquee`, or `gh-work ...`.
+# Full rationale + "404 = wrong persona" troubleshooting: rules/secrets.md
+# (~/repos/.claude/rules/secrets.md), "GitHub: pick the token by repo org".
 function gh() {
-    case "$PWD" in
-        "$HOME"/repos/tatari-tv/*) command gh "$@" ;;
-        *) GH_TOKEN="$GITHUB_PAT_HOME" command gh "$@" ;;
+    case "${GH_PERSONA:-}" in
+        work) GH_TOKEN="$GITHUB_PAT_WORK" command gh "$@" ;;
+        home) GH_TOKEN="$GITHUB_PAT_HOME" command gh "$@" ;;
+        *)
+            case "$PWD" in
+                "$HOME"/repos/tatari-tv/*) command gh "$@" ;;
+                *) GH_TOKEN="$GITHUB_PAT_HOME" command gh "$@" ;;
+            esac
+            ;;
     esac
 }
+function gh-work() { GH_PERSONA=work gh "$@" }
+function gh-home() { GH_PERSONA=home gh "$@" }
 
 # mise shims on PATH everywhere - node/npm and any mise-installed CLI (e.g. the
 # Pi agent, npm:@earendil-works/pi-coding-agent) must resolve in non-interactive
