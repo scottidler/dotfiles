@@ -5,3 +5,7 @@ name = "nord"
 
 [keys]
 prefix = "ctrl+q"
+open_notification_target = "prefix+a"
+
+[ui.toast]
+delivery = "herdr"
