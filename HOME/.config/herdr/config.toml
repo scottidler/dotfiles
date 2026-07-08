@@ -6,6 +6,8 @@ name = "nord"
 [keys]
 prefix = "ctrl+q"
 open_notification_target = "prefix+a"
+previous_workspace = "alt+up"
+next_workspace = "alt+down"
 
 [ui.toast]
 delivery = "herdr"
