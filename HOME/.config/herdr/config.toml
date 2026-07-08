@@ -1,0 +1,7 @@
+onboarding = false
+
+[theme]
+name = "nord"
+
+[keys]
+prefix = "ctrl+q"
