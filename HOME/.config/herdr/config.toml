@@ -3,11 +3,17 @@ onboarding = false
 [theme]
 name = "nord"
 
+[theme.custom]
+surface0 = "#81a1c1"
+surface1 = "#5e81ac"
+
 [keys]
 prefix = "ctrl+q"
 open_notification_target = "prefix+a"
-previous_workspace = "alt+up"
-next_workspace = "alt+down"
+previous_workspace = "ctrl+up"
+next_workspace = "ctrl+down"
+previous_agent = "alt+up"
+next_agent = "alt+down"
 
 [ui.toast]
 delivery = "herdr"
