@@ -19,6 +19,7 @@ aliases:
   cd../: cd ..
   carog: cargo
   authros: authors
+  herder: herdr
 
   # ========================================
   # GLOBAL ALIASES - Pipes
@@ -458,7 +459,7 @@ aliases:
   cb: cargo build
   cbr: cargo build --release
   ct: cargo test
-  cR: cargo run -q --
+  cr: cargo run -q --
   crd: RUST_LOG=debug cargo run -q --
   crh: cargo run -q -- --help
   crv: cargo run -q -- --version
@@ -479,8 +480,6 @@ aliases:
   co6: claude --model claude-opus-4-6[1m]
   co6k: claude --model claude-opus-4-6[200k]
   coin: claude --model fable
-
-  c-p: claude-permit
 
   # ========================================
   # clyde (Claude session catalog / cost tracking)
