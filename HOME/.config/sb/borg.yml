@@ -18,7 +18,7 @@ groq:
 llm:
   provider: claude
   model: claude-sonnet-4-6
-  api-key: ANTHROPIC_API_KEY
+  api-key: ESCOTE_ANTHROPIC_API_KEY
 
 telegram:
   bot-token: TELEGRAM_BOT_TOKEN
@@ -173,9 +173,9 @@ daemon:
 # Distillation feature toggles (all default-on; set false to disable a feature)
 # ---------------------------------------------------------------------------
 distill:
-  # Re-enabled 2026-07-05: the dom_smoothie clean-fetch + source-gated
-  # quality-gate fix landed in v0.9.3 (see docs/design/2026-07-05-article-transcript-boilerplate.md).
-  article-transcript: true
+  # article-transcript toggle removed 2026-07-07 (distillation-output-restore):
+  # transcripts no longer render into video/article note bodies at all, so there
+  # is nothing left to toggle. DistillConfig is now deny_unknown_fields.
   slide-append: true
   capture-note: true
   propose-tags: true

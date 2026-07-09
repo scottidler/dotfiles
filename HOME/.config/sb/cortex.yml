@@ -177,4 +177,4 @@ migrations:
 llm:
   provider: claude
   model: claude-sonnet-4-6
-  api-key: ANTHROPIC_API_KEY
+  api-key: ESCOTE_ANTHROPIC_API_KEY
