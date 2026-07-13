@@ -90,7 +90,7 @@ TIERS=(14 7 3 1)
 # above is exhausted and the floor still isn't restored -- age stops mattering
 # at that point, every repo's target/ (even one rebuilt seconds ago) gets
 # capped. Same value the old standalone weekly maxsize cron used.
-FALLBACK_CAP="5GB"
+FALLBACK_CAP="20GB"
 
 usage() {
   cat >&2 <<'EOF'

@@ -3,7 +3,7 @@ Description=Reactive watermark sweep of Rust build artifacts on intel-480gb-ssd
 
 [Service]
 Type=simple
-ExecStart=%h/bin/sweep-repos --ensure-free 100 --watch 30
+ExecStart=%h/bin/sweep-repos --ensure-free 40 --watch 30
 Restart=always
 RestartSec=10
 
