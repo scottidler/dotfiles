@@ -52,9 +52,12 @@ source ~/.antidote/antidote.zsh
 # case-insensitive matching so `re<TAB>` hits README.md
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-# Recompile the bundle if the .txt master-list exists
-if [[ -f ~/.zsh_plugins.txt ]]; then
-  antidote bundle < ~/.zsh_plugins.txt > ~/.zsh_plugins.zsh
+# Recompile the bundle only when the .txt master-list changed, and do it
+# atomically (temp file + mv) so a concurrently-starting shell never sources
+# a half-written bundle.
+if [[ -f ~/.zsh_plugins.txt && ( ~/.zsh_plugins.txt -nt ~/.zsh_plugins.zsh || ! -f ~/.zsh_plugins.zsh ) ]]; then
+  antidote bundle < ~/.zsh_plugins.txt > ~/.zsh_plugins.zsh.tmp.$$
+  mv ~/.zsh_plugins.zsh.tmp.$$ ~/.zsh_plugins.zsh
 fi
 
 # Only try to source it if the bundle file actually exists
