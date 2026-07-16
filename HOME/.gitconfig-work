@@ -2,7 +2,11 @@
 [user]
     name = Scott A. Idler
     email = scott.idler@tatari.tv
-    signingkey = ~/.ssh/identities/work/id_ed25519.pub
+    # Dedicated, passphrase-less SSH *signing* key (registered on escote-tatari
+    # as a Signing key only, so it cannot auth/push). Decoupled from the
+    # passphrase-locked auth key (id_ed25519) so commits sign in headless/agent
+    # contexts while pushing-as-Scott stays gated. See ~/.ssh/allowed_signers.
+    signingkey = ~/.ssh/identities/work/signing.pub
 
 [branch "main"]
     autosetupmerge = true

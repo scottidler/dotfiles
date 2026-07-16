@@ -48,6 +48,8 @@
     allowed = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 [gpg]
 	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/.ssh/allowed_signers
 [init]
 	defaultBranch = main
 [includeIf "gitdir:~/repos/tatari-tv/"]
