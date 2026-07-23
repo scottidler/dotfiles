@@ -132,12 +132,13 @@ daemon:
   daily-at: "M-F 07:00"
   weekly-at: "Sun 22:00"
   # Rayon cap emitted into the installed unit as RAYON_NUM_THREADS (also bounds
-  # candle's embedding fan-out). ~nproc/4 on this box.
-  rayon-threads: 8
+  # candle's embedding fan-out). Halved from 8 to 4 on 2026-07-20 after the
+  # daemon ran away (~6 cores, 5.3G, 3h+ silent hang). ~nproc/8 on this box.
+  rayon-threads: 4
   # Secret bootstrap: command stdout captured into env-file via ExecStartPre,
   # then loaded with EnvironmentFile. Reproduces the pre-existing hand-added unit lines.
   env-bootstrap:
-    command: /home/saidler/.cargo/bin/manifest age decrypt /home/saidler/repos/scottidler/keep/.secrets -f env
+    command: /home/saidler/.cargo/bin/manifest -C /home/saidler/repos/scottidler/keep/manifest.yml secrets env -f env
     env-file: /run/user/1000/cortex.env
   actions:
     classify:
@@ -178,3 +179,9 @@ llm:
   provider: claude
   model: claude-sonnet-4-6
   api-key: ESCOTE_ANTHROPIC_API_KEY
+
+fabric:
+  # mise-managed shim (matches borg.yml); self-resolves the pinned version
+  # under the daemon's stripped PATH. Explicit here because retiring the
+  # hand-built ~/.local/bin/fabric would otherwise leave `which fabric` empty.
+  binary: /home/saidler/.local/share/mise/shims/fabric

@@ -10,7 +10,7 @@ fi
 # vars. ~24ms, negligible even run on every shell. Needed everywhere (not just
 # .zshrc) so persona functions like `gh` below actually resolve their tokens in
 # non-interactive/agent shells, not just interactive ones.
-eval "$(manifest age decrypt ~/repos/scottidler/keep/.secrets)"
+eval "$(manifest -C ~/repos/scottidler/keep/manifest.yml secrets env)"
 
 # gws default persona = work (scott.idler@tatari.tv); gws-home overrides explicitly.
 # Set here (not .zshrc) so the bare `gws` command resolves in non-interactive shells too.

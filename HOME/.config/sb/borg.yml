@@ -54,7 +54,10 @@ desktop:
   appname: borg
 
 fabric:
-  binary: /home/saidler/go/bin/fabric
+  # mise-managed (ubi:danielmiessler/fabric); the shim self-resolves the pinned
+  # version even under the timer/daemon's stripped PATH. Version lives in
+  # ~/.config/mise/config.toml, not here.
+  binary: /home/saidler/.local/share/mise/shims/fabric
   model: ""
   summarize-pattern-youtube: obsidian-note.md
   summarize-pattern-article: obsidian-note.md
@@ -83,6 +86,8 @@ youtube:
       model: ""               # empty = inherit llm.model
       max-vision-concurrency: 4
       min-confidence: 0.6
+  ffmpeg-threads: nproc/8
+  ffmpeg-filter-threads: nproc/8
 
 routing:
   confidence-threshold: 0.6
@@ -166,7 +171,7 @@ migration:
 # ---------------------------------------------------------------------------
 daemon:
   env-bootstrap:
-    command: /home/saidler/.cargo/bin/manifest age decrypt /home/saidler/repos/scottidler/keep/.secrets -f env
+    command: /home/saidler/.cargo/bin/manifest -C /home/saidler/repos/scottidler/keep/manifest.yml secrets env -f env
     env-file: /run/user/1000/borg.env
 
 # ---------------------------------------------------------------------------
