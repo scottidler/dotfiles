@@ -1,0 +1,22 @@
+# Global git ignore ($XDG_CONFIG_HOME/git/ignore).
+# Git reads this in EVERY repo automatically (no core.excludesFile needed), and
+# ripgrep (rg) + fd honor it too -- so code searches skip these regenerable
+# trees in any directory, layered on top of each repo's own .gitignore.
+#
+# Conservative on purpose: only ALWAYS-junk dirs live here. build/ and dist/ are
+# deliberately excluded -- they're real source-dir names in some projects, and a
+# global ignore also hides untracked files from `git status` everywhere. Leave
+# those to per-repo .gitignore.
+
+# --- existing project patterns (do not remove) ---
+**/.claude/settings.local.json
+
+**/.claude/.cc-writes/
+
+# --- regenerable build / dependency / cache trees ---
+node_modules/
+target/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
