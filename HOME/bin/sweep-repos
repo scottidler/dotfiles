@@ -92,6 +92,21 @@ TIERS=(14 7 3 1)
 # capped. Same value the old standalone weekly maxsize cron used.
 FALLBACK_CAP="20GB"
 
+# When 1, sweep_pass/sweep_maxsize_pass skip any repo whose target/ isn't
+# actually relocated onto TARGET_DISK. Set ONLY for watermark/watch mode
+# (below); manual `--time`/`--maxsize` invocations are an explicit request to
+# clean everything under ROOT and keep their original, broader scope.
+#
+# BUG FIXED 2026-07-24: watermark mode swept EVERY repo under ROOT on every
+# trip, including repos whose target/ was never relocated (still local, on
+# ROOT's own filesystem). Sweeping those does nothing to restore TARGET_DISK's
+# free space -- pure collateral risk for zero benefit. Observed: slack-cli
+# (local target/) hit "No such file or directory" on
+# target/.fingerprint/*/invoked.timestamp mid-build while TARGET_DISK was
+# below floor and --watch was actively sweeping in the background, even
+# though slack-cli's target/ had nothing to do with TARGET_DISK's pressure.
+ONLY_RELOCATED=0
+
 usage() {
   cat >&2 <<'EOF'
 usage: sweep-repos [--time DAYS | --ensure-free GIB [--watch SECS] | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dry-run]
@@ -164,6 +179,14 @@ free_gib() {
   df -B1 --output=avail "${TARGET_DISK}" 2>/dev/null | awk 'NR==2 {printf "%d", $1/1073741824}'
 }
 
+# Whether repo's target/ is a relocate-targets symlink resolving onto
+# TARGET_DISK, vs a plain local directory. See ONLY_RELOCATED above.
+is_relocated() {
+  local repo="$1" resolved
+  resolved="$(readlink -f "${repo}/target" 2>/dev/null)" || return 1
+  [[ "${resolved}" == "${TARGET_DISK}"/* ]]
+}
+
 # Enumerate every repo-root Cargo.toml under ROOT.
 # Plain repos: <root>/<org>/<repo>/Cargo.toml (exactly 3 dirs deep).
 # Worktree-managed repos (the `worktree` CLI's bare+worktree layout, e.g.
@@ -209,6 +232,9 @@ sweep_pass() {
     repo="$(dirname "${manifest}")"
     # Skip repos that were never built locally (no target/) to keep the log clean.
     [[ -d "${repo}/target" ]] || continue
+    if (( ONLY_RELOCATED )) && ! is_relocated "${repo}"; then
+      continue
+    fi
     count=$((count + 1))
     echo "sweep-repos:   [${count}] --time ${days}d ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --time "${days}" "${repo}" \
@@ -222,6 +248,9 @@ sweep_maxsize_pass() {
   while IFS= read -r -d '' manifest; do
     repo="$(dirname "${manifest}")"
     [[ -d "${repo}/target" ]] || continue
+    if (( ONLY_RELOCATED )) && ! is_relocated "${repo}"; then
+      continue
+    fi
     count=$((count + 1))
     echo "sweep-repos:   [${count}] --maxsize ${size} ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --maxsize "${size}" "${repo}" \
@@ -290,6 +319,7 @@ run_watermark() {
 
 if [[ -n "${ENSURE_FREE}" ]]; then
   [[ "${ENSURE_FREE}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --ensure-free must be a positive integer (GiB)" >&2; exit 2; }
+  ONLY_RELOCATED=1
 
   if [[ -n "${WATCH}" ]]; then
     [[ "${WATCH}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: --watch must be a positive integer (seconds)" >&2; exit 2; }
