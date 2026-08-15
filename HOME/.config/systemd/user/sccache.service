@@ -2,12 +2,33 @@
 Description=sccache compiler cache server
 
 [Service]
-ExecStart=/home/saidler/.cargo/bin/sccache --start-server
-ExecStop=/home/saidler/.cargo/bin/sccache --stop-server
-Restart=on-failure
+# Run the server in the FOREGROUND, not via `--start-server`.
+#
+# `sccache --start-server` forks the real server and the launcher exits ~immediately.
+# Under the default Type=simple + KillMode=control-group, systemd treats that exit as
+# "service finished" and tears down the whole cgroup, killing the server it just spawned.
+# That is exactly what happened on 2026-07-24: the unit logged "Listening on address
+# 127.0.0.1:4227" and went inactive (dead) 85ms later, leaving desk with no server for
+# three weeks. Every cargo run since then relied on the CLIENT auto-spawning a server,
+# which works from an interactive shell but is blocked inside an agent sandbox; the
+# resulting EPERM gets cached into each repo's target/.rustc_info.json as
+# "success":false, and cargo then replays that failure forever without re-spawning.
+#
+# SCCACHE_START_SERVER=1 + SCCACHE_NO_DAEMON=1 makes the binary BECOME the server in
+# the foreground, so the main process is the thing systemd should supervise.
+Environment=SCCACHE_START_SERVER=1
+Environment=SCCACHE_NO_DAEMON=1
+ExecStart=/home/saidler/.cargo/bin/sccache
+Restart=always
+RestartSec=2
+
 Environment=SCCACHE_DIR=/home/saidler/.cache/sccache
 Environment=SCCACHE_CACHE_SIZE=20G
 Environment=SCCACHE_SERVER_PORT=4227
+# The server self-terminates after 600s idle by DEFAULT, exiting 0. A clean exit is not
+# a failure, so it would sit dead until the next build re-spawned it (the very hole above).
+# 0 disables the idle shutdown and keeps the unit the single owner of server lifetime.
+Environment=SCCACHE_IDLE_TIMEOUT=0
 
 [Install]
 WantedBy=default.target
