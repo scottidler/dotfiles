@@ -17,7 +17,7 @@ groq:
 
 llm:
   provider: claude
-  model: claude-sonnet-4-6
+  model: claude-sonnet-5
   api-key: ESCOTE_ANTHROPIC_API_KEY
 
 telegram:
@@ -54,7 +54,7 @@ desktop:
   appname: borg
 
 fabric:
-  # mise-managed (ubi:danielmiessler/fabric); the shim self-resolves the pinned
+  # mise-managed (github:danielmiessler/fabric); the shim self-resolves the pinned
   # version even under the timer/daemon's stripped PATH. Version lives in
   # ~/.config/mise/config.toml, not here.
   binary: /home/saidler/.local/share/mise/shims/fabric
@@ -184,3 +184,21 @@ distill:
   slide-append: true
   capture-note: true
   propose-tags: true
+
+# ---------------------------------------------------------------------------
+# Nightly harvest (sb-harvest.timer). Added 2026-08-15: the section was absent
+# entirely, so mode fell back to the DryRun default and env-bootstrap was None
+# (no ANTHROPIC_API_KEY on the timer -> every distill would degrade).
+# env-file is DELIBERATELY distinct from the daemon's borg.env so a one-shot
+# harvest run never clobbers the long-running daemon's captured environment.
+# ---------------------------------------------------------------------------
+harvest:
+  mode: live
+  # Sessions become harvestable after 1d idle (2026-08-16; the 7d default was
+  # clyde parity). Coupled knob: clyde-enrich.service carries a matching
+  # --dormant-after 1d drop-in override - selection needs enrich-status ok,
+  # so the effective latency is the max of the two horizons.
+  dormant-after: 1d
+  env-bootstrap:
+    command: /home/saidler/.cargo/bin/manifest -C /home/saidler/repos/scottidler/keep/manifest.yml secrets env -f env
+    env-file: /run/user/1000/sb-harvest.env
