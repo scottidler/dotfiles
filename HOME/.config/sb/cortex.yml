@@ -124,6 +124,36 @@ graph:
   # In-process weekly backfill of the LLM fact layer. Deterministic edges are
   # maintained separately on the 15-min graph tick; this refreshes only facts.
   fact-interval-secs: 604800
+  # Common words that must never mint a wikilink hub-membership edge. Consulted
+  # at edge-build time on the raw [[target]], before path resolution, so a
+  # backfill cannot reinstate them. "every" matched 569 times purely because
+  # the every.to creator hub has a 5-char title under linking.min-word-length.
+  # Hub names the auto-linker must never target, the graph must never mint an
+  # edge from, and `sb cortex unlink` may retract. Curated by the `hub-hygiene`
+  # skill, which measures each single-token hub's proper-noun ratio (share of
+  # prose uses written capitalized mid-sentence) rather than guessing. Full
+  # audit: notes/entity-hub-linkability-audit.md. These 16 all sit at or below
+  # 31%; everything kept is above 55% or not an English word at all.
+  wikilink-stopwords:
+    # ordinary words that happen to name a topic hub
+    - agents
+    - architecture
+    - automation
+    - coaching
+    - database
+    - design
+    - embeddings
+    - football
+    - infrastructure
+    - productivity
+    - programming
+    - security
+    - workflow
+    # ordinary words carrying ontotype: creator (Every.to, a channel named
+    # "Brief", and a mis-typed entity)
+    - brief
+    - every
+    - syntax
 
 daemon:
   debounce-secs: 5
@@ -131,10 +161,14 @@ daemon:
   poll-interval: 300
   daily-at: "M-F 07:00"
   weekly-at: "Sun 22:00"
-  # Rayon cap emitted into the installed unit as RAYON_NUM_THREADS (also bounds
-  # candle's embedding fan-out). Halved from 8 to 4 on 2026-07-20 after the
-  # daemon ran away (~6 cores, 5.3G, 3h+ silent hang). ~nproc/8 on this box.
-  rayon-threads: 4
+  # Rayon cap emitted into the installed unit as RAYON_NUM_THREADS. This pool
+  # serves the GOVERNANCE actions (classify/lint/link/quality/auto-tag); embed
+  # inference now runs in its own pool (embed.workers) and can no longer starve
+  # it. Halved 8 -> 4 on 2026-07-20 after a runaway; raised to 12 on 2026-08-18
+  # once the starvation root cause was found: 4 was throttling all governance to
+  # protect against a runaway that pool isolation is the correct guard for.
+  # desk has 32 cores; 12 governance + 2 embed leaves ample headroom.
+  rayon-threads: 12
   # Secret bootstrap: command stdout captured into env-file via ExecStartPre,
   # then loaded with EnvironmentFile. Reproduces the pre-existing hand-added unit lines.
   env-bootstrap:
@@ -159,6 +193,33 @@ daemon:
     intel:
       enable: true
 
+# Embedding generation (cortex is the only writer to note_embeddings).
+#
+# desk is AVX-only: /proc/cpuinfo reports `avx sse4_1 sse4_2` with NO avx2 and
+# NO fma, so gemm has no vectorized f32 microkernel and candle's MatMul runs on
+# `gemm_f32::microkernel::scalar` - roughly an order of magnitude off a modern
+# box. That is a hardware floor, not a tuning problem (and fastembed/ONNX is not
+# the escape hatch: `vault/Cargo.toml` pins `vec = ["vec-candle"]` precisely
+# because the ONNX backend has an AVX2 floor this CPU cannot meet).
+#
+# Slow is therefore accepted. What is NOT accepted is slow inference taking the
+# governance loop down with it: on 2026-08-16 20:48 a single embed tick ran for
+# two days, held all 4 rayon workers, and starved classify so 50 harvested
+# session notes sat unfiled in inbox/ while systemd still reported the daemon
+# `active (running)`.
+embed:
+  # Dedicated inference pool size. Was 0 = "let the backend pick", which chose
+  # min(8, available_parallelism) = 8 replicas on this 32-core box, all
+  # contending for the 4-thread global rayon pool. Pinned at 2: on the scalar
+  # kernel more replicas buy nothing and only widen the contention window.
+  workers: 2
+  # Hard ceiling on chunks embedded per tick. The tick's batch-size bounds
+  # NOTES (64), not chunks, and one long transcript can chunk into hundreds -
+  # which is how a single tick became a two-day job with no log line between
+  # start and finish. Bounding chunks makes each tick's wall-clock predictable
+  # and spreads the same work across ticks instead of one unbounded run.
+  max-chunks-per-tick: 512
+
 migrations:
   - name: v2-field-renames
     field-renames:
@@ -177,7 +238,7 @@ migrations:
 
 llm:
   provider: claude
-  model: claude-sonnet-4-6
+  model: claude-sonnet-5
   api-key: ESCOTE_ANTHROPIC_API_KEY
 
 fabric:
