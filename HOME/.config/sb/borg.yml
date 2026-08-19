@@ -112,8 +112,11 @@ staging:
   enabled: true
   double-write: true
   root: ~/.local/share/sb/borg/stages
-  retention-days: 60
-  rejected-retention-days: 90
+  # 14 days for successful traces, 21 for rejected ones (a rejection is worth a
+  # longer look). Staging is NOT swept automatically: run
+  # `sb borg retention sweep` when you want the stages tree pruned.
+  retention-days: 14
+  rejected-retention-days: 21
   layout: per-trace
   max-size-gb: 20
   size-alert-threshold-pct: 80
@@ -202,3 +205,13 @@ harvest:
   env-bootstrap:
     command: /home/saidler/.cargo/bin/manifest -C /home/saidler/repos/scottidler/keep/manifest.yml secrets env -f env
     env-file: /run/user/1000/sb-harvest.env
+
+# ---------------------------------------------------------------------------
+# Intake - raw-input sidecars at <vault>/system/intake/<trace>.txt. Forensics
+# only: nothing in the pipeline reads them, they just answer "what bytes did
+# borg receive for trace X?". A short window is the point - 21 days, not an
+# archive. 0 = keep forever. Swept daily by the daemon, or on demand with
+# `sb borg retention sweep --sidecars-only`.
+# ---------------------------------------------------------------------------
+intake:
+  retention-days: 21
