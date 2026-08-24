@@ -1,0 +1,6 @@
+[Unit]
+Description=Check swap usage and alert via ntfy on growth/thresholds
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/swap-watch.sh
