@@ -817,6 +817,13 @@ script:
     if [ ! -d "$repo" ]; then
       git clone --recurse-submodules git@github.com:Zackriya-Solutions/meetily.git "$repo"
     fi
+    # The bundled sidecar list also ships ffmpeg, which the Debian bundler
+    # installs straight to /usr/bin/ffmpeg -- colliding with apt's ffmpeg
+    # package (dpkg refuses to overwrite a file another package owns).
+    # find_ffmpeg_path() (src/audio/ffmpeg.rs) already falls back to `which
+    # ffmpeg` on PATH, so drop the bundled one rather than force the conflict.
+    conf="$repo/frontend/src-tauri/tauri.conf.json"
+    python3 -c "import json; p='$conf'; d=json.load(open(p)); eb=d['bundle']['externalBin']; eb.remove('binaries/ffmpeg') if 'binaries/ffmpeg' in eb else None; json.dump(d, open(p,'w'), indent=4)"
     cd "$repo/frontend"
     pnpm install
     RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native" ./build-gpu.sh
