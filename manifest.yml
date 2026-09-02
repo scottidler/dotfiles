@@ -805,3 +805,23 @@ script:
     sudo add-apt-repository "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main"
     sudo apt update
     sudo apt install code
+  meetily: |
+    # Meetily (Zackriya-Solutions/meetily): Tauri meeting-minutes app. Upstream
+    # only ships macOS/Windows, so this builds from source. llama-helper (the
+    # AI-summary sidecar) SIGILLs unless built with target-cpu=native -- the
+    # ambient RUSTFLAGS (mold linker, see [build] above) doesn't set that, so
+    # build-gpu.sh is run with it added explicitly. Installing the built .deb
+    # (rather than `cargo install`) is what gets the sidecar, bundled
+    # templates, desktop entry, and icon all placed correctly.
+    repo=~/repos/Zackriya-Solutions/meetily
+    if [ ! -d "$repo" ]; then
+      git clone --recurse-submodules git@github.com:Zackriya-Solutions/meetily.git "$repo"
+    fi
+    cd "$repo/frontend"
+    pnpm install
+    RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native" ./build-gpu.sh
+    deb=$(find "$repo" -path '*/target/release/bundle/deb/*.deb' | sort -V | tail -1)
+    sudo apt install -y "$deb"
+    rm -f ~/.local/share/applications/meetily.desktop ~/.local/share/icons/hicolor/512x512/apps/meetily.png
+    update-desktop-database ~/.local/share/applications
+    echo "meetily installed from $deb"
