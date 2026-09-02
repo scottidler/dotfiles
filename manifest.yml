@@ -820,7 +820,9 @@ script:
     cd "$repo/frontend"
     pnpm install
     RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native" ./build-gpu.sh
-    deb=$(find "$repo" -path '*/target/release/bundle/deb/*.deb' | sort -V | tail -1)
+    # find won't descend into target/ (it's a symlink to the SSD build cache;
+    # find doesn't follow symlinked dirs by default) -- a glob resolves fine.
+    deb=$(ls -t "$repo"/target/release/bundle/deb/*.deb 2>/dev/null | head -1)
     sudo apt install -y "$deb"
     rm -f ~/.local/share/applications/meetily.desktop ~/.local/share/icons/hicolor/512x512/apps/meetily.png
     update-desktop-database ~/.local/share/applications
