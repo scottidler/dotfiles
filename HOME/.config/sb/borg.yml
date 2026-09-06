@@ -98,7 +98,7 @@ hotkey:
   port: 8181
   key: "<Ctrl><Shift>b"
 
-log-level: debug
+log-level: info
 
 # ---------------------------------------------------------------------------
 # Staged ingestion pipeline

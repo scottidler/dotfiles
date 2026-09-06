@@ -6,6 +6,8 @@ vault:
     - ".cortex"
     - "assets"
     - "attachments"
+    - ".claude"
+    - "templates"
   exclude:
     - "CLAUDE.md"
     - "README.md"
@@ -16,13 +18,6 @@ vault:
     - "notes/ai/**"
 
 log-level: info
-
-schema:
-  domains: [ai, tech, football, work, writing, music, spanish, life, homelab, diy, resources, system]
-  types: [youtube, article, github, social, book, video, research, daily, meeting, note, vocab, moc, link, poem, system, digest, review]
-  origins: [authored, assisted, generated]
-  statuses: [unread, reading, reviewed, starred]
-  methods: [http, telegram, clipboard, cli, manual]
 
 actions:
   naming:
@@ -36,8 +31,9 @@ actions:
     exempt:
       daily: [domain]
     path-exempt:
-      "Inbox/**": [domain, origin, tags]
+      "inbox/**": [domain, origin, tags]
       "notes/ai/**": [domain, origin]
+      "entities/**": [domain, origin]
     type-fields:
       youtube: [source, creator, duration]
       video: [source, creator, duration]
@@ -235,6 +231,10 @@ migrations:
     value-renames:
       domain:
         knowledge: life
+  - name: v4-legacy-values
+    value-renames:
+      origin: { human: authored, ai-generated: generated }
+      status: { resolved-workaround: reviewed }
 
 llm:
   provider: claude
