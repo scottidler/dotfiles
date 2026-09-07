@@ -9,6 +9,37 @@ slack:
   browser-index: 0
   schedule: Mon,Thu 07:00:00
 
+# LLM triage: classify new inbox threads into the llm/* buckets the
+# state-filters below age. KEYLESS -- the call shells out to the locally
+# installed `claude` CLI, which owns its own auth, so nothing here is a
+# credential. Fires 30 minutes ahead of the digest so a digest day reads
+# fresh buckets rather than yesterday's.
+triage:
+  claude-binary: ~/.local/bin/claude
+  schedule: Mon..Fri 06:30:00
+  max-threads: 50
+  body-chars: 4000
+  classify-model: claude-haiku-4-5-20251001
+  draft-model: claude-sonnet-5
+  voice-profile: ~/Claude/writing/VOICE.md
+  buckets:
+    - name: needs-reply
+      label: llm/needs-reply
+      description: a real human wrote to Scott and expects a reply or action
+      draft: true
+    - name: fyi-work
+      label: llm/fyi-work
+      description: work-relevant notifications -- AWS, security, CI, vendors
+    - name: recruiting
+      label: llm/recruiting
+      description: LinkedIn, recruiters, job alerts
+    - name: receipts
+      label: llm/receipts
+      description: invoices, payments, renewals, order confirmations
+    - name: noise
+      label: llm/noise
+      description: everything else -- marketing, newsletters, social
+
 message-filters:
   # Bots: GitHub/CI notifications via the sre@ group (backstage-tatari[bot])
   # -> move straight out of the inbox into Bots. Listed first so it wins over
