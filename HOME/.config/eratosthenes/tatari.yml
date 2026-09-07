@@ -4,7 +4,7 @@ auth:
   creds-path: tatari
 
 slack:
-  token-env: ERATOSTHENES_SLACK_APP_TOKEN
+  token-env: ERATOSTHENES_SLACK_USER_TOKEN
   channel: D01G4Q7AWLV
   browser-index: 0
   schedule: Mon,Thu 07:00:00
