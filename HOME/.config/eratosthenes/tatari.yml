@@ -74,6 +74,46 @@ state-filters:
       labels: [Important]
       ttl: Keep
 
+  # LLM bucket: needs-reply is fully protected until answered. The engine
+  # removes llm/needs-reply once a reply goes out, at which point the
+  # thread falls through to Cull like anything else (design doc: llm/seen
+  # deliberately gets NO state-filter).
+  - keep-needs-reply:
+      label: llm/needs-reply
+      ttl: Keep
+
+  # LLM buckets below MUST precede Cull: Cull matches every INBOX thread on
+  # its own TTL regardless of label, so a bucket label placed after it would
+  # never get a chance to apply its own (tighter or looser) TTL first.
+
+  # LLM bucket: work-relevant notifications (AWS, security, CI, vendors)
+  - age-fyi-work:
+      label: llm/fyi-work
+      ttl:
+        read: 3d
+        unread: 7d
+      action: Purgatory
+
+  # LLM bucket: LinkedIn, recruiters, job alerts
+  - age-recruiting:
+      label: llm/recruiting
+      ttl: 3d
+      action: Purgatory
+
+  # LLM bucket: invoices, payments, renewals, order confirmations -- kept a
+  # bit longer than the other buckets for reference
+  - age-receipts:
+      label: llm/receipts
+      ttl: 7d
+      action: Purgatory
+
+  # LLM bucket: everything else -- marketing, newsletters, social. Ages off
+  # fastest of all buckets.
+  - age-noise:
+      label: llm/noise
+      ttl: 1d
+      action: Purgatory
+
   # Read inbox messages age off after 7d, unread after 21d
   - Cull:
       label: INBOX
