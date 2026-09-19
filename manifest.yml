@@ -285,6 +285,7 @@ npm:
   - diff-so-fancy
   - wt-cli
   - auth0-deploy-cli
+  - classifier-dev
 
 flatpak:
   items:
