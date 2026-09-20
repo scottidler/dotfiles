@@ -27,13 +27,14 @@ actions:
       - "^[\\p{Emoji}].*/$"
 
   frontmatter:
-    required: [title, date, type, domain, origin, tags]
+    required: [title, date, type, origin, tags]
     exempt:
-      daily: [domain]
+      daily: [domain, tags]
     path-exempt:
       "inbox/**": [domain, origin, tags]
-      "notes/ai/**": [domain, origin]
-      "entities/**": [domain, origin]
+      "notes/ai/**": [domain, origin, tags]
+      "entities/**": [domain, origin, tags]
+      "system/**": [tags]
     type-fields:
       youtube: [source, creator, duration]
       video: [source, creator, duration]
@@ -48,18 +49,6 @@ actions:
 
   tags:
     style: lowercase-hyphenated
-    canonical:
-      - ai-llm
-      - sre
-      - kubernetes
-      - football
-      - obsidian
-      - rust
-      - python
-      - nixos
-      - writing
-      - music
-      - spanish
     aliases:
       # `ai`/`ML`/`ml` -> `ai-llm` retired 2026-09-20 (tags-only design doc P1).
       # `ai` is a canonical tag now, and the domain-as-tag migration writes it
@@ -223,12 +212,7 @@ migrations:
       channel: creator
       duration_min: duration
       trace_id: trace
-      folder: domain
     field-drops: [day, time, ww, ref]
-  - name: v3-domain-expansion
-    value-renames:
-      domain:
-        knowledge: life
   - name: v4-legacy-values
     value-renames:
       origin: { human: authored, ai-generated: generated }

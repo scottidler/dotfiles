@@ -90,7 +90,6 @@ youtube:
 
 routing:
   confidence-threshold: 0.6
-  fallback-domain: inbox
 
 hotkey:
   host: desk.lan
