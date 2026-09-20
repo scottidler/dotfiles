@@ -61,7 +61,6 @@ fabric:
   model: ""
   summarize-pattern-youtube: obsidian-note.md
   summarize-pattern-article: obsidian-note.md
-  tag-pattern: create_tags
   classify-pattern: obsidian-classify.md
   condense-pattern: condense.md
   max-content-chars: 100000
@@ -187,6 +186,23 @@ distill:
   slide-append: true
   capture-note: true
   propose-tags: true
+
+# ---------------------------------------------------------------------------
+# Tags-only classification (docs/design/2026-09-19-tags-only-classification.md,
+# Phase 6). Same `tags.classifier` block, same shape, in cortex.yml - both
+# parse it through `distillers::tags::TagsClassifierConfig`. `classifier-dev`
+# is the closed-vocabulary multi-label classifier; when it errors at ingest,
+# `fallback` runs instead and the receipt is marked degraded rather than
+# publishing a silently-untagged note. `api-key-env` names the env var
+# CLASSIFY_API_KEY, reaching `borg.env` through the existing env-bootstrap
+# above, never the key value itself.
+# ---------------------------------------------------------------------------
+tags:
+  classifier:
+    classifier: classifier-dev
+    threshold: 0.9
+    fallback: deterministic
+    api-key-env: CLASSIFY_API_KEY
 
 # ---------------------------------------------------------------------------
 # Nightly harvest (sb-harvest.timer). Added 2026-08-15: the section was absent
