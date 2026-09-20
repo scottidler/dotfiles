@@ -61,9 +61,12 @@ actions:
       - music
       - spanish
     aliases:
-      ai: ai-llm
-      ML: ai-llm
-      ml: ai-llm
+      # `ai`/`ML`/`ml` -> `ai-llm` retired 2026-09-20 (tags-only design doc P1).
+      # `ai` is a canonical tag now, and the domain-as-tag migration writes it
+      # onto 1,148 notes; leaving these aliases in place meant the next daemon
+      # tick rewrote every one of them to `ai-llm`, which `tag-mapping.yml` then
+      # maps to `llm`. That chain is why exactly 1 note in the vault carried the
+      # tag `ai` before this change.
       k8s: kubernetes
       kube: kubernetes
       nix: nixos
@@ -235,6 +238,18 @@ migrations:
     value-renames:
       origin: { human: authored, ai-generated: generated }
       status: { resolved-workaround: reviewed }
+  # tags-only design doc P4. Copies each note's `domain` value onto its tag
+  # list so `tags` carries what `domain` carried before `domain` is deleted in
+  # P11. `resources` is the junk drawer the doc retires and `system` is a path
+  # fact, so neither is propagated. Idempotent: a second --apply writes zero
+  # files. Run it by name (`migrate --only v5-domain-as-tag --apply`) with both
+  # daemons stopped, then commit the obsidian repo, which is the authoritative
+  # undo. The inverse lives in second-brain `config/migrations/`, never here:
+  # `migrate --apply` runs every migration in this file.
+  - name: v5-domain-as-tag
+    field-to-tags:
+      domain:
+        exclude: [resources, system]
 
 llm:
   provider: claude
