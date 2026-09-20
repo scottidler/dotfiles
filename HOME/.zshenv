@@ -59,6 +59,8 @@ export PATH="$MISE_HOME/bin:$PATH"
 
 # sccache wrapper for cargo builds - otto ci / cargo build run directly by an
 # agent (not through an interactive shell) still need the compiler cache.
+# Requires sandbox.network.allowAllUnixSockets in ~/.claude/settings.json: the
+# Claude sandbox otherwise denies socket(AF_UNIX) and every cargo run dies EPERM.
 if hash sccache 2>/dev/null; then
     export RUSTC_WRAPPER=$(which sccache)
     export SCCACHE_SERVER_PORT=4227
