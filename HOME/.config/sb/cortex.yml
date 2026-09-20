@@ -104,10 +104,6 @@ actions:
     exclude:
       - "journal/**"
 
-  auto-tag:
-    enabled: true
-    min-tags-threshold: 3
-
   broken-links:
     check-wikilinks: true
     check-urls: false
@@ -161,7 +157,7 @@ daemon:
   daily-at: "M-F 07:00"
   weekly-at: "Sun 22:00"
   # Rayon cap emitted into the installed unit as RAYON_NUM_THREADS. This pool
-  # serves the GOVERNANCE actions (classify/lint/link/quality/auto-tag); embed
+  # serves the GOVERNANCE actions (classify/lint/link/quality); embed
   # inference now runs in its own pool (embed.workers) and can no longer starve
   # it. Halved 8 -> 4 on 2026-07-20 after a runaway; raised to 12 on 2026-08-18
   # once the starvation root cause was found: 4 was throttling all governance to
@@ -185,7 +181,6 @@ daemon:
       enable: true
     quality:
       enable: true
-    auto-tag: {}
     sweep:
       enable: true
     state: {}
@@ -261,3 +256,22 @@ fabric:
   # under the daemon's stripped PATH. Explicit here because retiring the
   # hand-built ~/.local/bin/fabric would otherwise leave `which fabric` empty.
   binary: /home/saidler/.local/share/mise/shims/fabric
+
+# ---------------------------------------------------------------------------
+# Tags-only classification (docs/design/2026-09-19-tags-only-classification.md,
+# Phase 7). The SAME `tags.classifier` block borg.yml carries, parsed by the
+# same `distillers::tags::TagsClassifierConfig`: cortex classify assigns tags
+# through the shared closed-vocabulary classifier and promotes inbox notes on
+# its confidence (high/medium promote, low holds). `fallback` runs when the
+# selected classifier errors - `deterministic` re-derives tags locally from the
+# note's own tags and author-tags, so a classifier.dev outage only holds notes
+# that carry no tags at all. `api-key-env` names the env var CLASSIFY_API_KEY,
+# reaching cortex.env through the daemon env-bootstrap above, never the key
+# value itself. The vocabulary paths stay on `sweep` - one source of truth.
+# ---------------------------------------------------------------------------
+tags:
+  classifier:
+    classifier: classifier-dev
+    threshold: 0.9
+    fallback: deterministic
+    api-key-env: CLASSIFY_API_KEY
