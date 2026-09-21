@@ -54,10 +54,30 @@ desktop:
   appname: borg
 
 fabric:
-  # mise-managed (github:danielmiessler/fabric); the shim self-resolves the pinned
-  # version even under the timer/daemon's stripped PATH. Version lives in
-  # ~/.config/mise/config.toml, not here.
-  binary: /home/saidler/.local/share/mise/shims/fabric
+  # Bare name on purpose: use WHATEVER fabric is installed on this system,
+  # resolved through PATH by vault::fabric::resolve_binary. The borg/cortex
+  # units set their own PATH (see borg::install_systemd), which carries both
+  # ~/.local/share/mise/shims and ~/.local/bin, so the daemon resolves it the
+  # same way an interactive shell does.
+  #
+  # Today that resolves to our own build of scottidler/Fabric (fork of
+  # danielmiessler/Fabric at v1.4.473) carrying two fixes upstream lacks, both
+  # open as danielmiessler/Fabric#2207:
+  #   1. `--maxTokens` exists at all. Upstream pins every Anthropic call to a
+  #      hardcoded 4096, which truncates distill-video mid-YAML because
+  #      thinking tokens are billed against the same budget.
+  #   2. `--thinking=low|medium|high` works on claude-sonnet-5. Upstream sends
+  #      the legacy `thinking.type=enabled` shape and gets HTTP 400.
+  # Rebuild: cd ~/repos/scottidler/Fabric && go build -ldflags="-s -w" -o ~/.local/bin/fabric ./cmd/fabric
+  #
+  # CAVEAT: mise still pins github:danielmiessler/fabric 1.4.470 and its shims
+  # dir comes FIRST in the unit's PATH, so a `mise install` re-sync would put
+  # upstream back in front and silently drop both fixes. `sb doctor` checks for
+  # --maxTokens support so that reverts loudly instead of quietly.
+  binary: fabric
+  # 0 would leave fabric's hardcoded 4096, which is the truncation bug.
+  # 16384 measured complete: 2819 thinking + 2860 text = 5679 output tokens.
+  max-tokens: 16384
   model: ""
   summarize-pattern-youtube: obsidian-note.md
   summarize-pattern-article: obsidian-note.md
