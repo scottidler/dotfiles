@@ -427,9 +427,9 @@ aliases:
   ave:
     value: aws-vault exec --
     global: true
-  ttv:
-    value: tatari-tv
-    global: true
+ # ttv:
+ #   value: tatari-tv
+ #   global: true
   ls-tatari|ls-ttv: ls-github-repos tatari-tv
   av: aws-vault exec -d 12h prod --
   avc: UV_INDEX_TATARI_PROD_CODEARTIFACT_PASSWORD=$(aws-vault exec -d 12h prod -- aws codeartifact get-authorization-token --domain tatari-prod --domain-owner 190403256318 --region us-east-1 --query authorizationToken --output text) aws-vault exec -d 12h prod --
