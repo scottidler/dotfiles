@@ -222,6 +222,9 @@ apt:
   - wmctrl
   # hex viewer and editor
   - xxd
+  # uinput keystroke injection: Handy types dictated text through ydotoold
+  # (works on Wayland, including terminals)
+  - ydotool
   # YAML/JSON processor (like jq but for YAML)
   - yq
   - zip
@@ -732,6 +735,68 @@ script:
     gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
     powerprofilesctl set balanced
     echo "gnome idle screen-dimming disabled (profile: $(powerprofilesctl get))"
+  handy: |
+    # Local speech-to-text (cjpais/Handy). Needs >= 0.9.0 for per-ISA CPU
+    # dispatch (desk is Sandy Bridge, no AVX2). The trigger is a GNOME
+    # compositor shortcut, not Handy's own X11 grab, which never fires from
+    # native Wayland windows.
+    LATEST=https://api.github.com/repos/cjpais/Handy/releases/latest
+    FILTER='.assets[] | select(.name | test("_amd64\\.deb$"))'
+    URL=$(curl -sL $LATEST | jq -r "$FILTER | .browser_download_url")
+    DEB=$(basename $URL)
+    wget -q $URL
+    sudo apt install -y ./$DEB && rm ./$DEB
+    SCHEMA=org.gnome.settings-daemon.plugins.media-keys
+    KB=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings
+    KB=$KB/handy-transcribe/
+    KEY=$SCHEMA.custom-keybinding:$KB
+    gsettings set $KEY name 'Handy Transcribe'
+    gsettings set $KEY command 'handy --toggle-transcription'
+    gsettings set $KEY binding '<Control>space'
+    CUR=$(gsettings get $SCHEMA custom-keybindings)
+    case "$CUR" in
+      *"$KB"*) ;;
+      *) NEW=$(echo "$CUR" | sed "s|^@as \[\]$|['$KB']|; t; s|]$|, '$KB']|")
+         gsettings set $SCHEMA custom-keybindings "$NEW" ;;
+    esac
+    systemctl --user enable --now ydotool.service
+    # Seed the settings Handy's defaults get wrong for this setup. Only
+    # missing keys are written, so a machine's existing choices survive.
+    # push_to_talk: the GNOME shortcut only sends "pressed", and autorepeat
+    #   flips a toggle every ~100ms; tap-to-start/tap-to-stop is required.
+    # paste_method direct: ctrl_v is not paste in a terminal.
+    # overlay_style none: without layer-shell (GNOME) the pill is a regular
+    #   window that takes keyboard focus and eats the typed text.
+    # transcribe_accelerator cpu: RX 6400 Vulkan is 4.5x slower than CPU.
+    STORE=~/.local/share/com.pais.handy/settings_store.json
+    mkdir -p "$(dirname $STORE)"
+    python3 - "$STORE" <<'PY'
+    import json, os, sys
+    p = sys.argv[1]
+    d = json.load(open(p)) if os.path.exists(p) else {}
+    s = d.setdefault("settings", {})
+    seed = {
+        "push_to_talk": False,
+        "paste_method": "direct",
+        "typing_tool": "ydotool",
+        "overlay_style": "none",
+        "transcribe_accelerator": "cpu",
+        "selected_model": "handy-computer/canary-180m-flash-gguf/"
+                          "canary-180m-flash-Q8_0.gguf",
+    }
+    added = [k for k in seed if k not in s]
+    for k in added:
+        s[k] = seed[k]
+    json.dump(d, open(p, "w"), indent=2)
+    print(f"handy settings: seeded {added or 'nothing (all present)'}")
+    PY
+    # Blue Yeti: 31% starved Handy's voice filter, 70% peaked at -2.4 dBFS.
+    # WirePlumber persists this in ~/.local/state/wireplumber/default-routes.
+    MIC=$(wpctl status | sed -n '/Sources:/,/Filters:/p' \
+      | grep -m1 'Blue Microphones' | grep -oE '[0-9]+' | head -1)
+    [ -n "$MIC" ] && wpctl set-volume $MIC 0.60 && echo "blue mic gain 60%"
+    VER=$(dpkg-query -W -f='${Version}' handy)
+    echo "handy $VER installed; Ctrl+Space -> handy --toggle-transcription"
   helm: |
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
     chmod 700 get_helm.sh

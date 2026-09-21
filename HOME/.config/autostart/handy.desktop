@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Exec=handy --start-hidden
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name[en_US]=Handy
+Name=Handy
+Comment[en_US]=Start Handy speech-to-text in the tray on login
+Comment=Start Handy speech-to-text in the tray on login
+Icon=handy
+StartupWMClass=handy
