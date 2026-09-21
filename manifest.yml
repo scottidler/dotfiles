@@ -545,6 +545,62 @@ script:
     EOF
     sudo apparmor_parser -r /etc/apparmor.d/bwrap
     echo "bwrap AppArmor userns profile installed"
+  swap-tuning: |
+    # zram-backed swap tier + oomd de-escalation for desk.lan.
+    #
+    # Problem this solves: systemd-oomd was killing whole cgroups on PSI
+    # pressure at a 50% threshold while ~50G of RAM was still available. On
+    # 2026-09-03 it killed sccache.service and a gnome-terminal vte-spawn
+    # scope. That scope is where herdr, every `claude` process, and all their
+    # MCP servers live, so one oomd decision can take out every session at
+    # once. This box has had ZERO kernel OOM kills across all boots since
+    # 2026-07-19: it was never out of memory, only under reclaim stall.
+    #
+    # 1. zram: compressed-RAM swap ahead of the disk swap file.
+    #    11.2G of anon pages were sitting on /swap.img at priority -1, i.e.
+    #    disk. Every fault back from disk swap is a stall, and stall time is
+    #    exactly what PSI measures and what oomd watches. Compressed RAM
+    #    collapses that latency and lowers the pressure signal itself.
+    #    zram-size is the LOGICAL device size: 16384 holds at most 16G of
+    #    pages, costing ~5.3G RAM at zstd's typical ~3:1. zram-resident-limit
+    #    is the hard physical cap, so even incompressible pages (worst case
+    #    ~1:1) cannot exceed 8G; past that zram stops accepting and the kernel
+    #    falls through to /swap.img at priority -1, which is the tiering we
+    #    want. NOTE: the config must exist BEFORE the generator runs, or
+    #    vendor defaults (min(ram/2, 4096), lzo-rle) win silently.
+    sudo apt install -y systemd-zram-generator
+    sudo tee /etc/systemd/zram-generator.conf <<'EOF'
+    [zram0]
+    zram-size = 16384
+    zram-resident-limit = 8192
+    compression-algorithm = zstd
+    swap-priority = 100
+    EOF
+    # 2. VM tunables. swappiness=100 is correct ONLY because zram exists at
+    #    priority 100: evicting anon to compressed RAM is cheap, so prefer it
+    #    over dropping this box's ~46G of page cache. This is the opposite of
+    #    the advice for disk-only swap. page-cluster=0 disables swap readahead,
+    #    which exists for spinning disks and just wastes decompression work on
+    #    a random-access device.
+    sudo tee /etc/sysctl.d/99-swap.conf <<'EOF'
+    vm.swappiness = 100
+    vm.page-cluster = 0
+    EOF
+    sudo sysctl --system >/dev/null
+    # 3. Raise oomd's PSI kill threshold. Ubuntu ships 50% in
+    #    /usr/lib/systemd/system/user@.service.d/10-oomd-user-service-defaults.conf.
+    #    80% keeps a backstop without firing on ordinary cargo build pressure.
+    #    Paired with ManagedOOMPreference=avoid on app-org.gnome.Terminal.slice
+    #    (linked from HOME/.config/systemd/user/), which marks the session slice
+    #    as a last-resort victim rather than a first-choice one.
+    sudo mkdir -p /etc/systemd/system/user@.service.d
+    sudo tee /etc/systemd/system/user@.service.d/20-oomd-pressure-limit.conf <<'EOF'
+    [Service]
+    ManagedOOMMemoryPressureLimit=80%
+    EOF
+    sudo systemctl daemon-reload
+    sudo systemctl restart systemd-zram-setup@zram0.service
+    echo "swap-tuning installed: $(swapon --show | tr '\n' ' ')"
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
     # instead of editing /etc/sudoers directly. The content is syntax-checked

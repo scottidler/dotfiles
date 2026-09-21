@@ -15,8 +15,9 @@ mkdir -p "${STATE_DIR}"
 # on raw total-swap% (old behavior) false-positived every time zram filled
 # as intended. Track disk-swap bytes and PSI instead.
 DISK_SWAP_DEV="/swap.img"
-WARN_MB=512
-CRIT_MB=4096
+DISK_SWAP_CAP_MB=16384
+WARN_MB=8192
+CRIT_MB=14746
 GROWTH_MB_ALERT=512
 PSI_FULL_CRIT=5.0 # % of the last 60s with ALL tasks stalled on memory
 
