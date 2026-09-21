@@ -217,18 +217,15 @@ migrations:
     value-renames:
       origin: { human: authored, ai-generated: generated }
       status: { resolved-workaround: reviewed }
-  # tags-only design doc P4. Copies each note's `domain` value onto its tag
-  # list so `tags` carries what `domain` carried before `domain` is deleted in
-  # P11. `resources` is the junk drawer the doc retires and `system` is a path
-  # fact, so neither is propagated. Idempotent: a second --apply writes zero
-  # files. Run it by name (`migrate --only v5-domain-as-tag --apply`) with both
+  # tags-only design doc P11. Drops the `domain:` frontmatter key vault-wide,
+  # now that P4's v5-domain-as-tag (removed from this file, its job done and
+  # idempotent-empty) already copied every note's domain value onto its tags.
+  # Run it by name (`migrate --only v6-drop-domain --apply`) with both
   # daemons stopped, then commit the obsidian repo, which is the authoritative
-  # undo. The inverse lives in second-brain `config/migrations/`, never here:
-  # `migrate --apply` runs every migration in this file.
-  - name: v5-domain-as-tag
-    field-to-tags:
-      domain:
-        exclude: [resources, system]
+  # undo (the field-drop has no inverse plan file: dropping a key is not
+  # reconstructible from the migrated tags alone).
+  - name: v6-drop-domain
+    field-drops: [domain]
 
 llm:
   provider: claude
