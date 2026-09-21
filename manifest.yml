@@ -299,6 +299,7 @@ flatpak:
   - com.rafaelmardojai.Blanket
   - org.gnome.gitlab.somas.Apostrophe
   - com.github.johnfactotum.QuickLookup
+  - com.moonlight_stream.Moonlight
 
 cargo:
   items:
