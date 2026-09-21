@@ -265,11 +265,16 @@ if [[ -n "${MAXSIZE}" ]]; then
   exit 0
 fi
 
-# Set once a "still low" toast has fired, so --watch mode (checking every few
-# seconds) sends ONE notification per low-disk episode instead of re-spamming
-# it every poll interval for as long as the disk stays below floor. Reset the
-# moment the floor is restored, so a later, distinct episode still alerts.
-LOW_NOTIFIED=0
+# How often to re-alert while stuck in the worst case below (still below floor
+# after the unconditional cap -- i.e. every repo was already under
+# FALLBACK_CAP, so age/size sweeping found nothing left to reclaim). A single
+# one-shot toast is easy to dismiss and forget about while the disk is still
+# critically low; re-firing every 15 minutes keeps it in front of the user
+# until they actually act (2026-07-24: 91% full and the escalation ladder had
+# nothing 20GB+ to cap, discovered only because Claude was asked to dig in --
+# nothing had alerted about it).
+NOTIFY_INTERVAL=900
+LAST_LOW_NOTIFY=0
 
 # One watermark check: age-based tiers first (gentlest), then an unconditional
 # per-repo cap as the last resort. Returns 0 once the floor is restored (or
@@ -280,7 +285,7 @@ run_watermark() {
   echo "sweep-repos: watermark: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
-    LOW_NOTIFIED=0
+    LAST_LOW_NOTIFY=0
     return 0
   fi
   for tier in "${TIERS[@]}"; do
@@ -293,7 +298,7 @@ run_watermark() {
     free="$(free_gib)"
     if (( free >= ENSURE_FREE )); then
       echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${tier}d tier; done" >&2
-      LOW_NOTIFIED=0
+      LAST_LOW_NOTIFY=0
       return 0
     fi
   done
@@ -306,13 +311,15 @@ run_watermark() {
   free="$(free_gib)"
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after ${FALLBACK_CAP} cap; done" >&2
-    LOW_NOTIFIED=0
+    LAST_LOW_NOTIFY=0
     return 0
   fi
-  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- the disk is genuinely too small for the current checked-out footprint" >&2
-  if (( ! LOW_NOTIFIED )); then
-    toast critical "sweep-repos: disk still low" "Capped every repo at ${FALLBACK_CAP} and ${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB). Needs a bigger disk, or prune worktrees you're done with."
-    LOW_NOTIFIED=1
+  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- no repo was even over the cap, so age/size sweeping found nothing left to reclaim" >&2
+  local now
+  now="$(date +%s)"
+  if (( now - LAST_LOW_NOTIFY >= NOTIFY_INTERVAL )); then
+    toast critical "sweep-repos: disk still low" "${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB) and no repo was over ${FALLBACK_CAP}, so the escalation ladder found nothing left to cap. Needs a bigger disk, or prune worktrees/repos you're done with. (will keep alerting every $((NOTIFY_INTERVAL / 60))m until resolved)"
+    LAST_LOW_NOTIFY="${now}"
   fi
   return 1
 }
