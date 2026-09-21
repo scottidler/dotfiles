@@ -262,4 +262,5 @@ tags:
     classifier: classifier-dev
     threshold: 0.9
     fallback: deterministic
-    api-key-env: CLASSIFY_API_KEY
+    # Keyless public tier; see borg.yml for why CLASSIFY_API_KEY is gone.
+    # Add `token-env: CLASSIFIER_DEV_TOKEN` for a live workspace key.

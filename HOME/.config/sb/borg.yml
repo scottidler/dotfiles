@@ -221,7 +221,13 @@ tags:
     classifier: classifier-dev
     threshold: 0.9
     fallback: deterministic
-    api-key-env: CLASSIFY_API_KEY
+    # No `token-env`: the KEYLESS public tier. CLASSIFY_API_KEY was present in
+    # every shell and in the secrets manifest while classifier.dev rejected it
+    # (401 invalid_api_key), so every classify fell back to deterministic and
+    # nothing reported it. Keyless is rate-limited (3,000/min fast, 200/min
+    # smart, 200 texts per call, which is what batches chunk at) and needs no
+    # setup. Add `token-env: CLASSIFIER_DEV_TOKEN` only for a live workspace
+    # key from classifier.dev/app/keys.
 
 # ---------------------------------------------------------------------------
 # Nightly harvest (sb-harvest.timer). Added 2026-08-15: the section was absent
