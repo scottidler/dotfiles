@@ -28,12 +28,19 @@ actions:
 
   frontmatter:
     required: [title, date, type, origin, tags]
+    # `domain` was dropped vault-wide on 2026-09-20 (tags-only design doc
+    # P11, migration v6-drop-domain), so it is gone from the exempt lists:
+    # exempting a key that no longer exists reads as though the facet is
+    # still live. It moves to `deprecated-drops` instead, where lint reports
+    # `frontmatter.deprecated.domain` if a pre-P11 daemon on another host
+    # ever writes it back into a synced note.
+    deprecated-drops: [domain]
     exempt:
-      daily: [domain, tags]
+      daily: [tags]
     path-exempt:
-      "inbox/**": [domain, origin, tags]
-      "notes/ai/**": [domain, origin, tags]
-      "entities/**": [domain, origin, tags]
+      "inbox/**": [origin, tags]
+      "notes/ai/**": [origin, tags]
+      "entities/**": [origin, tags]
       "system/**": [tags]
     type-fields:
       youtube: [source, creator, duration]
