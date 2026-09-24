@@ -6,7 +6,7 @@
 log-level: debug
 
 # Other overridable settings (defaults shown):
-# persona-url: https://persona.tatari.dev
+# persona-url: https://persona.internal.tatari.dev
 # okta-issuer: https://tatari.okta.com/oauth2/default
 # client-id: 0oa11b1u7nzZd5EaW698
 # redirect-uri: http://local.tatari.tools:11313/callback
