@@ -52,4 +52,7 @@ if [[ "$1" == "git-upload-pack" || "$1" == "git-receive-pack" ]]; then
 	fi
 fi
 
+# Tells ~/.ssh/config to skip its default github.com IdentityFile, so -i is the
+# only eligible key and the agent's load order cannot pick the persona.
+export GITCONFIG_SSH_KEY="$SELECTED_KEY"
 exec /usr/bin/ssh -i "$SELECTED_KEY" "$@"
