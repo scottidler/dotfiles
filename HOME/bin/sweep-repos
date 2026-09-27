@@ -37,6 +37,20 @@
 #                                                  SIZE (e.g. 5GB) by trimming
 #                                                  its oldest artifacts.
 #
+# ORPHAN PASS (2026-09-27, opt-in via SWEEP_ORPHANS=1): relocate-targets leaves
+# a DEST/<rel>/target behind when a copy dies before it commits (SIGKILL, power
+# loss), and a hand-made dir under DEST is just as invisible: every mode above
+# enumerates forward from ROOT, so nothing ever lists DEST. The orphan pass
+# does, and removes only a leaf `target` dir that no live link resolves to or
+# into, whose owning repo is gone or points elsewhere, that no cargo build
+# holds, and that relocate-targets is not copying into (the shared
+# DEST/.relocate.lock). Parents go only via rmdir, so a dir holding a live
+# target cannot be removed. It fails closed: a broken enumeration, an empty
+# live set, or more than ORPHAN_MAX orphans at once deletes nothing and
+# alerts. Runs before the ladder when below the floor, once per
+# ORPHAN_INTERVAL in watch mode regardless, and before the cap in maxsize mode.
+# Design: docs/design/2026-09-27-cargo-target-orphan-sweep.md.
+#
 # BUG FIXED 2026-07-04: watermark mode used to check free space on ROOT's
 # filesystem (~/repos, which lives on /). relocate-targets moved every repo's
 # target/ onto a dedicated SSD via symlink, so / always had plenty of room and
@@ -77,10 +91,16 @@ export PATH="${HOME}/.cargo/bin:${PATH}"
 DAYS=14
 ROOT="${HOME}/repos"
 TARGET_DISK="/media/saidler/intel-480gb-ssd"
+DEST=""                 # relocate-targets' DEST; default ${TARGET_DISK}/cargo-target
 ENSURE_FREE=""
 MAXSIZE=""
 WATCH=""
 DRY_RUN=()
+
+# Orphan pass knobs. Env rather than flags so the unit file sets them.
+SWEEP_ORPHANS="${SWEEP_ORPHANS:-0}"
+ORPHAN_MAX="${ORPHAN_MAX:-5}"
+ORPHAN_INTERVAL="${ORPHAN_INTERVAL:-86400}"
 
 # Escalation ladder for watermark mode: gentlest (most days = fewest artifacts
 # removed) first, harshest last. Only descend a tier if the floor isn't yet met.
@@ -109,7 +129,7 @@ ONLY_RELOCATED=0
 
 usage() {
   cat >&2 <<'EOF'
-usage: sweep-repos [--time DAYS | --ensure-free GIB [--watch SECS] | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dry-run]
+usage: sweep-repos [--time DAYS | --ensure-free GIB [--watch SECS] | --maxsize SIZE] [--root DIR] [--target-disk DIR] [--dest DIR] [--dry-run]
   --time DAYS        manual mode: remove build artifacts older than DAYS (default: 14)
   --ensure-free GIB  watermark mode: sweep only when free space on the
                      target-disk filesystem is below GIB, escalating
@@ -128,9 +148,20 @@ usage: sweep-repos [--time DAYS | --ensure-free GIB [--watch SECS] | --maxsize S
   --target-disk DIR  filesystem to check free space on -- must match where
                      relocate-targets sends target/ dirs
                      (default: /media/saidler/intel-480gb-ssd)
+  --dest DIR         relocate-targets' DEST, scanned by the orphan pass
+                     (default: <target-disk>/cargo-target)
   --dry-run          report only; delete nothing
 Enumerates <root>/<org>/<repo>/Cargo.toml (and, for worktree-managed repos,
 <root>/<org>/<repo>/<worktree>/Cargo.toml) and runs cargo-sweep per repo.
+
+Orphan pass (watermark, watch and maxsize modes; env):
+  SWEEP_ORPHANS=0|1    1 enables it (default: 0, logs "orphan pass disabled")
+  ORPHAN_MAX=N         more than N orphans at once aborts the pass, deleting
+                       nothing (default: 5)
+  ORPHAN_INTERVAL=SECS watch mode also runs it this often above the floor
+                       (default: 86400)
+Removes DEST target dirs no live link owns. Needs the default --root: it
+scans all of DEST, so a narrower root would shrink the live set only.
 EOF
 }
 
@@ -142,6 +173,7 @@ while [[ $# -gt 0 ]]; do
     --watch)       WATCH="$2"; shift 2 ;;
     --root)        ROOT="$2"; shift 2 ;;
     --target-disk) TARGET_DISK="$2"; shift 2 ;;
+    --dest)        DEST="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=(--dry-run); shift ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "sweep-repos: unknown arg: $1" >&2; usage; exit 2 ;;
@@ -152,6 +184,10 @@ if [[ -n "${WATCH}" && -z "${ENSURE_FREE}" ]]; then
   echo "sweep-repos: --watch requires --ensure-free" >&2
   exit 2
 fi
+DEST="${DEST:-${TARGET_DISK}/cargo-target}"
+[[ "${SWEEP_ORPHANS}" =~ ^[01]$ ]] || { echo "sweep-repos: SWEEP_ORPHANS must be 0 or 1, got: ${SWEEP_ORPHANS}" >&2; exit 2; }
+[[ "${ORPHAN_MAX}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: ORPHAN_MAX must be a whole number, got: ${ORPHAN_MAX}" >&2; exit 2; }
+[[ "${ORPHAN_INTERVAL}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: ORPHAN_INTERVAL must be whole seconds, got: ${ORPHAN_INTERVAL}" >&2; exit 2; }
 
 # Best-effort desktop toast. Works from cron by pointing at the user's session
 # bus (cron has no DBUS_SESSION_BUS_ADDRESS). Never fails the script.
@@ -170,6 +206,17 @@ if ! command -v cargo-sweep >/dev/null 2>&1; then
   toast critical "sweep-repos: cargo-sweep MISSING" "Rust build artifacts are NOT being swept and the disk will fill. Install it: cargo install cargo-sweep"
   exit 1
 fi
+
+# The watchdog keeps the copy it started with in memory until restarted, so the
+# journal has to say which revision is running. -dirty covers this file only:
+# the dotfiles tree is rarely clean as a whole.
+self="$(readlink -f "$0")"
+if rev="$(git -C "$(dirname "${self}")" rev-parse --short HEAD 2>/dev/null)"; then
+  git -C "$(dirname "${self}")" diff --quiet HEAD -- "${self}" 2>/dev/null || rev="${rev}-dirty"
+else
+  rev="unknown"
+fi
+echo "sweep-repos: revision ${rev} (${self})" >&2
 
 # Available GiB on TARGET_DISK -- where relocate-targets actually puts each
 # repo's target/ dir. This is deliberately NOT ROOT's filesystem: ROOT (~/repos)
@@ -207,21 +254,33 @@ is_relocated() {
 # container) so it never descends into target/ -> fast, no stall.
 list_manifests() {
   {
-    find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0
+    status=0
+    find "${ROOT}" -mindepth 3 -maxdepth 3 -name Cargo.toml -type f -print0 || status=1
     find "${ROOT}" -mindepth 3 -maxdepth 3 -name .bare -type d -print0 \
-      | while IFS= read -r -d '' bare; do
-          git --git-dir="${bare}" worktree list --porcelain 2>/dev/null \
-            | awk '/^worktree /{print $2}' \
-            | while IFS= read -r wt; do
-                # `if` not `[[ ]] &&`: under set -e, a false test on the LHS of
-                # `&&` makes the whole statement's exit status 1 and kills this
-                # loop right there -- and every repo's OWN bare-container entry
-                # (which never has a Cargo.toml) is always the first line of its
-                # `worktree list` output, so this silently truncated enumeration
-                # after only 2 of 18 worktree repos before it was caught 2026-07-05.
-                if [[ -f "${wt}/Cargo.toml" ]]; then printf '%s\0' "${wt}/Cargo.toml"; fi
-              done
-        done
+      | {
+          listed=0
+          while IFS= read -r -d '' bare; do
+            # git's stderr goes to the journal, and a failed listing fails the
+            # whole enumeration (after the rest is listed): the orphan pass
+            # treats a missing worktree as a missing live link.
+            if ! wts="$(git --git-dir="${bare}" worktree list --porcelain)"; then
+              echo "sweep-repos: WARN git worktree list failed for ${bare}" >&2
+              listed=1; continue
+            fi
+            while IFS= read -r wt; do
+              # `if` not `[[ ]] &&`: under set -e, a false test on the LHS of
+              # `&&` makes the whole statement's exit status 1 and kills this
+              # loop right there -- and every repo's OWN bare-container entry
+              # (which never has a Cargo.toml) is always the first line of its
+              # `worktree list` output, so this silently truncated enumeration
+              # after only 2 of 18 worktree repos before it was caught 2026-07-05.
+              if [[ -f "${wt}/Cargo.toml" ]]; then printf '%s\0' "${wt}/Cargo.toml"; fi
+            # sed, not awk '{print $2}': a worktree path may hold spaces.
+            done < <(sed -n 's/^worktree //p' <<<"${wts}")
+          done
+          (( listed == 0 ))
+        } || status=1
+    (( status == 0 ))
   } | sort -z
 }
 
@@ -258,13 +317,6 @@ sweep_maxsize_pass() {
   done < <(list_manifests)
 }
 
-if [[ -n "${MAXSIZE}" ]]; then
-  echo "sweep-repos: maxsize mode: root=${ROOT} cap=${MAXSIZE}${DRY_RUN:+ (dry-run)}" >&2
-  sweep_maxsize_pass "${MAXSIZE}"
-  echo "sweep-repos: done" >&2
-  exit 0
-fi
-
 # How often to re-alert while stuck in the worst case below (still below floor
 # after the unconditional cap -- i.e. every repo was already under
 # FALLBACK_CAP, so age/size sweeping found nothing left to reclaim). A single
@@ -275,14 +327,253 @@ fi
 # nothing had alerted about it).
 NOTIFY_INTERVAL=900
 LAST_LOW_NOTIFY=0
+# The orphan pass keeps its own limiter: every floor-restored path resets
+# LAST_LOW_NOTIFY to 0, which would unthrottle a repeating orphan abort.
+LAST_ORPHAN_NOTIFY=0
+# Advances only when a pass completes (or is configured off), so a lock-held
+# skip retries next tick and each restart makes the pass due again.
+LAST_ORPHAN_RUN=0
 
-# One watermark check: age-based tiers first (gentlest), then an unconditional
+# st_dev of a path's nearest existing ancestor (DEST may not exist yet).
+# Copied from relocate-targets.
+dev_of() {
+  local p="$1"
+  while [[ ! -e "${p}" && "${p}" != "/" ]]; do p="$(dirname "${p}")"; done
+  stat -c %d "${p}" 2>/dev/null || echo "?"
+}
+
+orphan_abort() {
+  local why="$1" now
+  echo "sweep-repos: ERROR orphan pass aborted: ${why}" >&2
+  now="$(date +%s)"
+  if (( now - LAST_ORPHAN_NOTIFY >= NOTIFY_INTERVAL )); then
+    toast critical "sweep-repos: orphan pass aborted" "${why}"
+    LAST_ORPHAN_NOTIFY="${now}"
+  fi
+  return 1
+}
+
+# An unmounted SSD leaves DEST as an empty dir (or nothing) on the OS disk, and
+# an empty DEST would read as "no orphans" at best. Same guard as
+# relocate-targets' require_dest_mounted, but it aborts the pass, not the
+# script: the watch loop must keep running.
+require_dest_mounted() {
+  local dest_dev repo_dev
+  dest_dev="$(dev_of "${DEST}")"
+  repo_dev="$(dev_of "${ROOT}")"
+  if [[ "${dest_dev}" == "?" || "${dest_dev}" == "${repo_dev}" ]]; then
+    orphan_abort "${DEST} is on the same filesystem as ${ROOT} (dedicated drive not mounted?)"
+    return 1
+  fi
+}
+
+close_fds() {
+  local lockfd
+  for lockfd in $1; do exec {lockfd}<&-; done
+}
+
+# Why a DEST target dir is still owned, printed; fails if nothing owns it.
+# Reads the caller's `live` set.
+orphan_keep_reason() {
+  local dest="$1" c="$2" l rel marker line mapped
+  if [[ -L "${c}" ]]; then echo "a symlink"; return 0; fi
+  c="$(realpath -e -- "${c}")" || { echo "unresolvable"; return 0; }
+  if [[ "${c}" != "${dest}"/* ]]; then echo "outside ${dest}"; return 0; fi
+  if [[ -n "${live[${c}]:-}" ]]; then echo "live"; return 0; fi
+  for l in "${!live[@]}"; do
+    if [[ "${l}" == "${c}"/* ]]; then echo "holds live ${l}"; return 0; fi
+    if [[ "${c}" == "${l}"/* ]]; then echo "inside live ${l}"; return 0; fi
+  done
+  rel="${c#"${dest}"/}"; rel="${rel%/target}"
+  # DEST/<name>/target is relocate-targets --repo on a repo outside ROOT.
+  if [[ "${rel}" != */* ]]; then echo "unknown layout"; return 0; fi
+  marker="$(dirname "${c}")/.relocate-link"
+  if [[ -e "${marker}" ]]; then
+    if [[ ! -r "${marker}" ]]; then echo "unreadable ${marker}"; return 0; fi
+    while IFS= read -r line; do
+      if [[ -L "${line}" && "$(readlink -f -- "${line}")" == "${c}" ]]; then echo "marker link ${line}"; return 0; fi
+    done < "${marker}"
+  fi
+  # relocate-targets maps ROOT/<rel>/target to DEST/<rel>/target. An absent
+  # target is owned too: its pre-link branch re-adopts this dir next run.
+  if [[ -d "${ROOT}/${rel}" ]]; then
+    if [[ ! -e "${ROOT}/${rel}/target" && ! -L "${ROOT}/${rel}/target" ]]; then
+      echo "repo ${ROOT}/${rel} has no target yet"; return 0
+    fi
+    if mapped="$(readlink -f -- "${ROOT}/${rel}/target")" \
+      && [[ "${mapped}" == "${c}" || "${mapped}" == "${c}"/* ]]; then
+      echo "repo link ${ROOT}/${rel}/target"; return 0
+    fi
+  fi
+  return 1
+}
+
+# The orphan pass proper, run with DEST/.relocate.lock held (see sweep_orphans).
+orphan_pass() {
+  local dest="$1"
+  local -a manifests=() found=() cands=() orphans=() orphan_fds=() lockfiles=()
+  local -A links=() live=()
+  local m l r c why f lockfd fds held dangling=0 kept=0 removed=0 freed=0 i bytes p
+
+  # Live set: every repo's target link from the enumeration the ladder uses,
+  # plus an fd scan for links it cannot see (--repo mode, nested layouts).
+  mapfile -d '' manifests < <(list_manifests)
+  if ! wait $!; then orphan_abort "repo enumeration under ${ROOT} failed (see above)"; return 1; fi
+  for m in "${manifests[@]}"; do
+    l="$(dirname "${m}")/target"
+    if [[ -e "${l}" || -L "${l}" ]]; then links["$(realpath -ms -- "${l}")"]=1; fi
+  done
+  mapfile -d '' found < <(fd -HI -0 -t l '^target$' --max-depth 6 "${ROOT}")
+  if ! wait $!; then orphan_abort "fd scan of ${ROOT} for target links failed"; return 1; fi
+  for l in "${found[@]}"; do links["$(realpath -ms -- "${l}")"]=1; done
+  # readlink -f fails on a link whose middle component is missing. Dropped,
+  # not kept as "": an empty live path would prefix-match every candidate.
+  for l in "${!links[@]}"; do
+    if r="$(readlink -f -- "${l}")" && [[ -n "${r}" ]]; then live["${r}"]=1; else dangling=$((dangling + 1)); fi
+  done
+  echo "sweep-repos: orphan pass: links=${#links[@]} live=${#live[@]} dangling=${dangling}" >&2
+  if (( ${#live[@]} == 0 )); then orphan_abort "live set is empty (no target link under ${ROOT})"; return 1; fi
+
+  # Candidates: leaf `target` dirs only. -prune stops at the first `target` on
+  # every path, so one nested inside another is never listed, and a depth-1
+  # DEST/target is never descended into.
+  mapfile -d '' cands < <(find "${dest}" -path "${dest}/target" -prune \
+    -o -type d -name target ! -path "${dest}" -prune -print0)
+  if ! wait $!; then orphan_abort "find over ${dest} failed"; return 1; fi
+
+  for c in "${cands[@]}"; do
+    if why="$(orphan_keep_reason "${dest}" "${c}")"; then
+      kept=$((kept + 1))
+      case "${why}" in
+        "unknown layout"|unresolvable|unreadable*) echo "sweep-repos: WARN ${why} ${c}; kept" >&2 ;;
+      esac
+      continue
+    fi
+    c="$(realpath -e -- "${c}")"
+    # A cargo build holds its target's .cargo-lock. Each lock stays held, on a
+    # read-only fd, through this candidate's rm, so a build cannot start in it
+    # between the check and the delete.
+    fds=""; held=1
+    mapfile -d '' lockfiles < <(find "${c}" -maxdepth 3 -name .cargo-lock -print0)
+    if ! wait $!; then
+      echo "sweep-repos: WARN cannot list ${c}'s cargo locks; kept" >&2
+      kept=$((kept + 1)); continue
+    fi
+    for f in "${lockfiles[@]}"; do
+      if ! { exec {lockfd}<"${f}"; } 2>/dev/null; then held=0; break; fi
+      fds+=" ${lockfd}"
+      if ! flock -n "${lockfd}"; then held=0; break; fi
+    done
+    if (( ! held )); then
+      close_fds "${fds}"
+      echo "sweep-repos: keeping ${c}: ${f} is held by a cargo build (or unopenable)" >&2
+      kept=$((kept + 1)); continue
+    fi
+    orphans+=("${c}"); orphan_fds+=("${fds}")
+  done
+
+  # Breaker: this many at once means discovery broke, not that leaks piled up.
+  if (( ${#orphans[@]} > ORPHAN_MAX )); then
+    for i in "${!orphans[@]}"; do
+      echo "sweep-repos:   would-be orphan ${orphans[${i}]}" >&2
+      close_fds "${orphan_fds[${i}]}"
+    done
+    orphan_abort "${#orphans[@]} orphans > ORPHAN_MAX=${ORPHAN_MAX}; nothing removed. If they are legit (worktrees removed at once): SWEEP_ORPHANS=1 ORPHAN_MAX=${#orphans[@]} ~/bin/sweep-repos --maxsize 1000GB"
+    return 1
+  fi
+
+  for i in "${!orphans[@]}"; do
+    c="${orphans[${i}]}"
+    bytes="$(du -sB1 -- "${c}" | cut -f1)" || bytes=0
+    echo "sweep-repos: orphan ${c} $(numfmt --to=iec "${bytes}")${DRY_RUN:+ (dry-run)}" >&2
+    if (( ${#DRY_RUN[@]} > 0 )); then close_fds "${orphan_fds[${i}]}"; continue; fi
+    if rm -rf -- "${c}"; then   # regenerable: cargo build output relocated from <repo>/target
+      removed=$((removed + 1)); freed=$((freed + bytes))
+      p="$(dirname "${c}")"
+      rm -f -- "${p}/.relocate-link"   # regenerable: the removed target's own stale owner marker
+      # rmdir refuses a non-empty dir, so a parent that still holds a live
+      # target survives even a wrong classification.
+      while [[ "${p}" == "${dest}"/* ]] && rmdir -- "${p}" 2>/dev/null; do p="$(dirname "${p}")"; done
+    else
+      echo "sweep-repos: WARN rm failed for orphan ${c}" >&2
+    fi
+    close_fds "${orphan_fds[${i}]}"
+  done
+  echo "sweep-repos: orphan pass: kept=${kept} removed=${removed} freed=${freed}${DRY_RUN:+ (dry-run)}" >&2
+}
+
+# Remove DEST target dirs no live link owns. Returns 1 on an abort (nothing
+# removed), 0 otherwise, including a skip.
+sweep_orphans() {
+  if (( ! SWEEP_ORPHANS )); then
+    echo "sweep-repos: orphan pass disabled (SWEEP_ORPHANS=0)" >&2
+    LAST_ORPHAN_RUN="$(date +%s)"; return 0
+  fi
+  # Candidates come from all of DEST, so a narrower root would shrink the live
+  # set without shrinking the candidates.
+  if [[ "${ROOT%/}" != "${HOME}/repos" ]]; then
+    echo "sweep-repos: WARN orphan pass needs the default root (${HOME}/repos), not ${ROOT}; skipped" >&2
+    LAST_ORPHAN_RUN="$(date +%s)"; return 0
+  fi
+  require_dest_mounted || return 1
+  local dest lock rc=0
+  if ! dest="$(realpath -e -- "${DEST}")" || [[ ! -d "${dest}" ]]; then
+    orphan_abort "${DEST} is not a directory"; return 1
+  fi
+  # relocate-targets holds this lock for its whole run, so a copy still in
+  # flight is never read as an orphan. A dry run opens it read-only and only if
+  # it exists (relocate-targets creates it before locking), so it creates
+  # nothing.
+  lock="${dest}/.relocate.lock"
+  local opened=0
+  if (( ${#DRY_RUN[@]} == 0 )); then
+    if ! { exec 9>>"${lock}"; } 2>/dev/null; then orphan_abort "cannot open ${lock}"; return 1; fi
+    opened=1
+  elif [[ -e "${lock}" ]]; then
+    if ! { exec 9<"${lock}"; } 2>/dev/null; then orphan_abort "cannot open ${lock}"; return 1; fi
+    opened=1
+  fi
+  if (( opened )) && ! flock -n 9; then
+    echo "sweep-repos: relocate-targets running, skipping orphan pass" >&2
+    exec 9>&-; return 0
+  fi
+  orphan_pass "${dest}" || rc=$?
+  exec 9>&-
+  if (( rc == 0 )); then LAST_ORPHAN_RUN="$(date +%s)"; fi
+  return "${rc}"
+}
+
+if [[ -n "${MAXSIZE}" ]]; then
+  echo "sweep-repos: maxsize mode: root=${ROOT} cap=${MAXSIZE}${DRY_RUN:+ (dry-run)}" >&2
+  orphan_rc=0
+  sweep_orphans || orphan_rc=1
+  sweep_maxsize_pass "${MAXSIZE}"
+  echo "sweep-repos: done" >&2
+  exit "${orphan_rc}"
+fi
+
+# One watermark check: the orphan pass, then age-based tiers (gentlest), then an unconditional
 # per-repo cap as the last resort. Returns 0 once the floor is restored (or
 # was never breached), 1 if still below floor after every tier.
 run_watermark() {
   local free
   free="$(free_gib)"
   echo "sweep-repos: watermark: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
+  # The orphan pass goes first below the floor: the tiers' early return would
+  # never reach it. Watch mode also runs it once per ORPHAN_INTERVAL, or a leak
+  # would sit on a roomy disk forever (and keep blocking that repo's relocate).
+  local overdue=0
+  if [[ -n "${WATCH}" ]] && (( $(date +%s) - LAST_ORPHAN_RUN >= ORPHAN_INTERVAL )); then overdue=1; fi
+  if (( free < ENSURE_FREE || overdue )); then
+    local before="${free}"
+    sweep_orphans || true
+    free="$(free_gib)"
+    if (( before < ENSURE_FREE && free >= ENSURE_FREE )); then
+      echo "sweep-repos: floor restored: ${free}GiB >= ${ENSURE_FREE}GiB after the orphan pass; done" >&2
+      LAST_LOW_NOTIFY=0
+      return 0
+    fi
+  fi
   if (( free >= ENSURE_FREE )); then
     echo "sweep-repos: ${free}GiB >= ${ENSURE_FREE}GiB floor; nothing to do" >&2
     LAST_LOW_NOTIFY=0

@@ -493,10 +493,10 @@ script:
     # watching continuously.
     #
     # This runs as a long-lived systemd --user service instead: `sweep-repos
-    # --ensure-free 100 --watch 30` checks free space on TARGET_DISK every 30s
+    # --ensure-free 40 --watch 30` checks free space on TARGET_DISK every 30s
     # (a single cheap `df` call when healthy) and reacts the moment it drops
-    # below 100GiB, escalating age-based tiers (14d -> 7d -> 3d -> 1d) and then
-    # an unconditional 5GB per-repo cap -- all folded into sweep-repos itself
+    # below 40GiB, escalating age-based tiers (14d -> 7d -> 3d -> 1d) and then
+    # an unconditional 20GB per-repo cap -- all folded into sweep-repos itself
     # now, so there's one mechanism instead of two schedules to keep in sync.
     #
     # Also relies on sweep-repos being worktree-aware (fixed same day): it used
