@@ -1,0 +1,42 @@
+otto:
+  api: 1
+  tasks: [ci]
+
+tasks:
+  lint:
+    help: "docs/ markdown-only check, plus whitespace"
+    bash: |
+      set -e
+      # docs/ is prose only, per the house rule (scottidler/claude's own lint
+      # task and rules/general.md, Documentation): a phase's spike script or
+      # fixture data belongs in bin/, not next to the design doc that cites it.
+      NONPROSE=$(find docs \( -type f -o -type l \) ! -name '*.md' -not -path '*/.claude/*')
+      if [ -n "$NONPROSE" ]; then
+        echo "docs/ takes markdown only, found:"
+        echo "$NONPROSE"
+        exit 1
+      fi
+      # `whitespace -r` rewrites files and exits 0, so it could never fail lint;
+      # --check exits 1 on a dirty tree. whitespace has no .gitignore support
+      # and takes only directories, so it scans a copy of exactly the files git
+      # tracks or would track, matching the claude repo's sibling .otto.yml so
+      # a future gitignored bucket here doesn't dirty the check either.
+      WS=$(mktemp -d)
+      git ls-files -z --cached --others --exclude-standard \
+        | tar --null --ignore-failed-read -T - -cf - | tar -C "$WS" -xf -
+      WS_RC=0
+      whitespace --check -r "$WS" || WS_RC=$?
+      rm -rf -- "$WS"   # regenerable: a scratch copy of the working tree
+      exit "$WS_RC"
+
+  test:
+    help: "Run the sweep-repos fixture matrix"
+    bash: |
+      set -e
+      bash bin/sweep-repos-test.sh
+
+  ci:
+    help: "Full CI pipeline (lint + test)"
+    before: [lint, test]
+    bash: |
+      echo "✅ All CI checks passed!"
