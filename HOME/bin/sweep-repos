@@ -286,6 +286,39 @@ list_manifests() {
   } | sort -z
 }
 
+# Cargo holds <target>/<profile>/.cargo-lock for any build that writes
+# artifacts (cargo 1.98: a second build blocks on it with "Blocking waiting
+# for file lock on artifact directory"). Without this check the tier ladder
+# ran `cargo sweep --maxsize` on second-brain/main 10 times between 09:00 and
+# 09:24 on 2026-09-27 while it was building, deleting .rlib and fingerprint
+# files out from under rustc. Takes every lock without waiting and leaves them
+# held in BUILD_LOCK_FDS, so a build cannot start mid-sweep either (it blocks
+# until close_fds). On failure releases all, sets BUILD_LOCK_WHY, returns 1.
+BUILD_LOCK_FDS=""
+BUILD_LOCK_WHY=""
+hold_build_locks() {
+  local target="$1" f lockfd
+  local -a lockfiles
+  BUILD_LOCK_FDS=""
+  mapfile -d '' lockfiles < <(find -H "${target}" -maxdepth 3 -name .cargo-lock -print0)
+  if ! wait $!; then BUILD_LOCK_WHY="cannot list its cargo locks"; return 1; fi
+  for f in "${lockfiles[@]}"; do
+    if ! { exec {lockfd}<"${f}"; } 2>/dev/null; then
+      close_fds "${BUILD_LOCK_FDS}"; BUILD_LOCK_FDS=""
+      BUILD_LOCK_WHY="${f} is unopenable"; return 1
+    fi
+    BUILD_LOCK_FDS+=" ${lockfd}"
+    if ! flock -n "${lockfd}"; then
+      close_fds "${BUILD_LOCK_FDS}"; BUILD_LOCK_FDS=""
+      BUILD_LOCK_WHY="${f} is held by a cargo build"; return 1
+    fi
+  done
+}
+
+# Repos a pass skipped because a build held their lock, for the still-low
+# toast. Reset per watermark check.
+declare -A BUILD_SKIPPED=()
+
 # Sweep every built repo under ROOT with a single --time window.
 sweep_pass() {
   local days="$1" count=0 manifest repo
@@ -297,9 +330,15 @@ sweep_pass() {
       continue
     fi
     count=$((count + 1))
+    if ! hold_build_locks "${repo}/target"; then
+      echo "sweep-repos:   [${count}] skipping ${repo}: ${BUILD_LOCK_WHY}" >&2
+      BUILD_SKIPPED["${repo}"]=1
+      continue
+    fi
     echo "sweep-repos:   [${count}] --time ${days}d ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --time "${days}" "${repo}" \
       || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
+    close_fds "${BUILD_LOCK_FDS}"
   done < <(list_manifests)
 }
 
@@ -313,9 +352,15 @@ sweep_maxsize_pass() {
       continue
     fi
     count=$((count + 1))
+    if ! hold_build_locks "${repo}/target"; then
+      echo "sweep-repos:   [${count}] skipping ${repo}: ${BUILD_LOCK_WHY}" >&2
+      BUILD_SKIPPED["${repo}"]=1
+      continue
+    fi
     echo "sweep-repos:   [${count}] --maxsize ${size} ${repo}" >&2
     cargo sweep "${DRY_RUN[@]}" --maxsize "${size}" "${repo}" \
       || echo "sweep-repos: WARN sweep failed for ${repo}" >&2
+    close_fds "${BUILD_LOCK_FDS}"
   done < <(list_manifests)
 }
 
@@ -559,6 +604,7 @@ fi
 # was never breached), 1 if still below floor after every tier.
 run_watermark() {
   local free
+  BUILD_SKIPPED=()
   free="$(free_gib)"
   echo "sweep-repos: watermark: ${free}GiB free on ${TARGET_DISK}, floor=${ENSURE_FREE}GiB, root=${ROOT}${DRY_RUN:+ (dry-run)}" >&2
   # The orphan pass goes first below the floor: the tiers' early return would
@@ -607,11 +653,15 @@ run_watermark() {
     LAST_LOW_NOTIFY=0
     return 0
   fi
-  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- no repo was even over the cap, so age/size sweeping found nothing left to reclaim" >&2
+  local skipped=""
+  if (( ${#BUILD_SKIPPED[@]} )); then
+    skipped=" Skipped (cargo build in progress, retried next check): $(printf '%s\n' "${!BUILD_SKIPPED[@]}" | sort | paste -sd, - | sed 's/,/, /g')."
+  fi
+  echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- no swept repo was over the cap, so age/size sweeping found nothing left to reclaim.${skipped}" >&2
   local now
   now="$(date +%s)"
   if (( now - LAST_LOW_NOTIFY >= NOTIFY_INTERVAL )); then
-    toast critical "sweep-repos: disk still low" "${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB) and no repo was over ${FALLBACK_CAP}, so the escalation ladder found nothing left to cap. Needs a bigger disk, or prune worktrees/repos you're done with. (will keep alerting every $((NOTIFY_INTERVAL / 60))m until resolved)"
+    toast critical "sweep-repos: disk still low" "${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB) and no swept repo was over ${FALLBACK_CAP}, so the escalation ladder found nothing left to cap.${skipped} Needs a bigger disk, or prune worktrees/repos you're done with. (will keep alerting every $((NOTIFY_INTERVAL / 60))m until resolved)"
     LAST_LOW_NOTIFY="${now}"
   fi
   return 1

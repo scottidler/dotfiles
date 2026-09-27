@@ -403,6 +403,56 @@ cap_at=$(grep -n 'cargo-shim: sweep --maxsize 1000GB' "$LOG" | head -1 | cut -d:
 eq 'maxsize: exit 0' 0 "$rc"
 eq 'maxsize: orphan pass, then the cap' yes "$([ -n "$pass_at" ] && [ -n "$cap_at" ] && [ "$pass_at" -lt "$cap_at" ] && echo yes || echo "no (pass=$pass_at cap=$cap_at)")"
 
+echo "=== the ladder skips a repo whose .cargo-lock a build holds ==="
+fresh
+live o/busy
+live o/idle
+touch "$DEST/o/busy/target/debug/.cargo-lock" "$DEST/o/idle/target/debug/.cargo-lock"
+flock "$DEST/o/busy/target/debug/.cargo-lock" -c "echo ready > '$C/ready'; read -r _ < '$C/go'" & holder=$!
+read -r _ < "$C/ready"
+run "" -- --maxsize 1GB; rc=$?
+echo go > "$C/go"; wait "$holder"
+eq 'live build: exit 0' 0 "$rc"
+eq 'live build: busy repo not swept' 0 "$(logged "cargo-shim: sweep --maxsize 1GB $ROOT/o/busy")"
+eq 'live build: skip logged with the reason' 1 "$(logged "skipping $ROOT/o/busy: .*held by a cargo build")"
+eq 'live build: idle repo still swept' 1 "$(logged "cargo-shim: sweep --maxsize 1GB $ROOT/o/idle")"
+
+echo "=== a .cargo-lock stays held through cargo sweep ==="
+fresh
+live o/r
+touch "$DEST/o/r/target/debug/.cargo-lock"
+cat > "$H/.cargo/bin/cargo" <<'EOF'
+#!/bin/bash
+echo "cargo-shim: $*" >> "$SR_LOG"
+echo ready > "$SR_READY"; read -r _ < "$SR_GO"
+echo "cargo-shim: done" >> "$SR_LOG"
+EOF
+run "" -- --maxsize 1GB & pid=$!
+read -r _ < "$C/ready"
+flock -w 5 "$DEST/o/r/target/debug/.cargo-lock" \
+  -c "grep -c 'cargo-shim: done' '$LOG' > '$C/at-acquire'" & waiter=$!
+waiter_blocked "$waiter"
+eq 'lock through sweep: a build blocks while cargo sweep runs' 0 "$?"
+echo go > "$C/go"
+wait "$pid"; rc=$?
+wait "$waiter"
+eq 'lock through sweep: exit 0' 0 "$rc"
+eq 'lock through sweep: the build got the lock only after the sweep finished' 1 "$(cat "$C/at-acquire" 2>/dev/null)"
+
+echo "=== still below the floor: the toast names the skipped live build ==="
+fresh size=1100m
+live o/busy
+touch "$DEST/o/busy/target/debug/.cargo-lock"
+head -c 200M /dev/zero > "$DEST/o/busy/target/debug/blob"
+flock "$DEST/o/busy/target/debug/.cargo-lock" -c "echo ready > '$C/ready'; read -r _ < '$C/go'" & holder=$!
+read -r _ < "$C/ready"
+run "" -- --ensure-free 1; rc=$?
+echo go > "$C/go"; wait "$holder"
+eq 'still low: exit 1' 1 "$rc"
+eq 'still low: busy repo never swept' 0 "$(logged "cargo-shim: sweep .* $ROOT/o/busy")"
+eq 'still low: blob survives' yes "$(there "$DEST/o/busy/target/debug/blob")"
+eq 'still low: toast names the skipped repo' 1 "$(grep -c "Skipped (cargo build in progress, retried next check): $ROOT/o/busy\." "$C/toasts" 2>/dev/null)"
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
