@@ -101,3 +101,26 @@ Repo: `scottidler/dotfiles`. Files: `HOME/bin/sweep-repos`, `bin/sweep-repos-tes
 ### Open questions
 - Rollout steps 2 and 4 (restart `sweep-repos-watchdog.service`, then set `Environment=SWEEP_ORPHANS=1`) are the operator's. The running watchdog is still on the pre-Phase-3 script in memory. Step 3's comparison already matches (above), but it ran on the uncommitted working copy, so it should be re-run after the restart as the doc orders.
 - Rollout step 6: `catalog-api`'s root-owned local `target/` still needs `sudo rm -rf` before relocate-targets can link that repo. Once the orphan pass is enabled, it will remove the 173M DEST copy on its first run.
+
+## Implementation audit round 1
+Findings: `/tmp/review-panel/KUWJNlzM/synthesis.md`. Items 1-4 fixed (claude 4f09edb, and this dotfiles commit); items 5-6 deferred, note-only.
+
+### Design decisions
+- Leading zeros are rejected at validation (`^(0|[1-9][0-9]*)$`, exit 2) rather than forced to base 10 with `10#`: `HOME/bin/sweep-repos` (`ORPHAN_MAX`, `ORPHAN_INTERVAL`) and relocate-targets (`--min-free`, `--lock-wait`); one check at the edge means no later arithmetic can ever see `08`, so no guard's `if` can go false on an arithmetic error. `08` fell through the breaker to `rm`; `010` meant 8.
+- relocate-targets `migrate()`: a failed set-aside `mv` logs ERROR, removes the verified dst, and returns 1; the source is still a plain `target/`, and removing dst keeps the doc's invariant that a complete dst never sits beside it. The rm runs with INT/TERM still ignored, so it finishes before the traps are disarmed.
+- The ownership precheck is guarded with `[[ -z "${REMOTE}" ]]`, matching Non-Goals ("new checks are local-only").
+- claude `.otto.yml`: dropped the stale `HOME/.claude/bin/release` lint entry; `otto lint` no longer prints the `rg` error.
+- Fixtures, pre-fix script via `SWEEP_REPOS` / `RELOCATE_TARGETS` against the new harness, then fixed:
+  - `bin/sweep-repos-test.sh`, pre-fix: `FAIL  breaker: ORPHAN_MAX=08 exits 2 / want [2] / got [0]`, `FAIL  breaker: ORPHAN_MAX=08 zero removals / want [7] / got [1]` (all six orphans removed), plus the `010` and `ORPHAN_INTERVAL=010` cases (rc 0; their removal counts cascade from `08` having already emptied DEST), `pass=76 fail=6`. Fixed: `pass=82 fail=0`.
+  - claude `bin/relocate-targets-test.sh`, pre-fix: `a leading-zero --lock-wait exits 2 / got [0]`, `a leading-zero --min-free exits 2 / got [0]`, `remote foreign owner: no ownership WARN / want [0] / got [1]`, `remote foreign owner: counted migrated / want [1] / got [0]`, `set-aside failure: no link inside the source / want [absent] / got [link]`, `set-aside failure: dst removed / want [absent] / got [dir]`, `set-aside failure: source untouched / want [7] / got [8]`, and 2 more, `pass=66 fail=9`. Fixed: `pass=75 fail=0`.
+
+### Deviations
+- Pre-fix `--min-free 08` exited 0, not 1 as P1 reported, in both sweep and `--repo` mode: `line 319: 08: value too great for base` aborted that `relocate_one` call and the run ended `migrated=0 warnings=0` (a silent skip, fail-open on alerting). P1's rc 1 came from the staff seat's reduction, not the full script. Either way it now exits 2 before any work.
+- relocate-targets' same-filesystem `mv "${src}" "${dst}"` was also unchecked and had the same failure shape (return 0, then `ln -s` into the source); it is now `|| return 1`. Not in the audit's list. No fixture: the harness's DEST is always its own tmpfs, so the rename transport never runs.
+- Audit item 6 (deferred): the candidate `find` in `orphan_pass` uses `-path DEST/target -prune ... ! -path DEST` instead of the doc's `-mindepth 2` (doc :142). It is stricter: `-mindepth 2` would still descend into a depth-1 `DEST/target`. The doc's inventory command (:249) still uses `-mindepth 2`; the two differ only for a `DEST/target/...` shape, which does not exist today.
+
+### Tradeoffs
+- Reject vs `10#` coercion: coercing would quietly accept `08` as 8, and a typo'd value driving a delete breaker should fail loudly instead.
+
+### Open questions
+- None.

@@ -186,8 +186,10 @@ if [[ -n "${WATCH}" && -z "${ENSURE_FREE}" ]]; then
 fi
 DEST="${DEST:-${TARGET_DISK}/cargo-target}"
 [[ "${SWEEP_ORPHANS}" =~ ^[01]$ ]] || { echo "sweep-repos: SWEEP_ORPHANS must be 0 or 1, got: ${SWEEP_ORPHANS}" >&2; exit 2; }
-[[ "${ORPHAN_MAX}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: ORPHAN_MAX must be a whole number, got: ${ORPHAN_MAX}" >&2; exit 2; }
-[[ "${ORPHAN_INTERVAL}" =~ ^[0-9]+$ ]] || { echo "sweep-repos: ORPHAN_INTERVAL must be whole seconds, got: ${ORPHAN_INTERVAL}" >&2; exit 2; }
+# No leading zero: bash arithmetic reads 010 as octal, and 08 is an error that
+# turns the breaker's `if` false and falls through to the rm.
+[[ "${ORPHAN_MAX}" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "sweep-repos: ORPHAN_MAX must be a whole number (no leading zero), got: ${ORPHAN_MAX}" >&2; exit 2; }
+[[ "${ORPHAN_INTERVAL}" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "sweep-repos: ORPHAN_INTERVAL must be whole seconds (no leading zero), got: ${ORPHAN_INTERVAL}" >&2; exit 2; }
 
 # Best-effort desktop toast. Works from cron by pointing at the user's session
 # bus (cron has no DBUS_SESSION_BUS_ADDRESS). Never fails the script.

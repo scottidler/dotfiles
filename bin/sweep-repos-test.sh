@@ -305,6 +305,15 @@ orphans ORPHAN_MAX=5; rc=$?
 eq 'breaker: 6 > ORPHAN_MAX=5 aborts' 1 "$(logged 'ERROR orphan pass aborted: 6 orphans > ORPHAN_MAX=5')"
 eq 'breaker: zero removals' 7 "$(targets | wc -w)"
 eq 'breaker: toast names the override' 1 "$(grep -c 'ORPHAN_MAX=6 ~/bin/sweep-repos --maxsize 1000GB' "$C/toasts" 2>/dev/null)"
+orphans ORPHAN_MAX=08; rc=$?
+eq 'breaker: ORPHAN_MAX=08 exits 2' 2 "$rc"
+eq 'breaker: ORPHAN_MAX=08 zero removals' 7 "$(targets | wc -w)"
+orphans ORPHAN_MAX=010; rc=$?
+eq 'breaker: ORPHAN_MAX=010 exits 2' 2 "$rc"
+eq 'breaker: ORPHAN_MAX=010 zero removals' 7 "$(targets | wc -w)"
+orphans ORPHAN_INTERVAL=010; rc=$?
+eq 'a leading-zero ORPHAN_INTERVAL exits 2' 2 "$rc"
+eq 'leading-zero ORPHAN_INTERVAL: zero removals' 7 "$(targets | wc -w)"
 orphans ORPHAN_MAX=6
 eq 'breaker: ORPHAN_MAX=6 removes all six' 'o/r/target ' "$(targets)"
 
