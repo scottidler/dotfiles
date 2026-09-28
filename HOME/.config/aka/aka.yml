@@ -304,12 +304,12 @@ aliases:
   # CONFIG EDITING
   # ========================================
 
-  akas: editor ~/.config/aka/aka.yml; . ~/.zshrc
-  bashrc: editor ~/.bashrc; . ~/.bashrc
-  zshrc: editor ~/.zshrc; . ~/.zshrc
-  aliases: editor ~/.shell-aliases; . ~/.zshrc
-  exports: editor ~/.shell-exports; . ~/.zshrc
-  functions: editor ~/.shell-functions; . ~/.zshrc
+  akas: editor ~/.config/aka/aka.yml; exec zsh
+  bashrc: editor ~/.bashrc; exec bash
+  zshrc: editor ~/.zshrc; exec zsh
+  aliases: editor ~/.shell-aliases; exec zsh
+  exports: editor ~/.shell-exports; exec zsh
+  functions: editor ~/.shell-functions; exec zsh
 
   # ========================================
   # WHICH COMBOS
@@ -475,7 +475,9 @@ aliases:
   cC: claude --continue
   ch: claude --model haiku
   cs: claude --model sonnet
+  csu: claude --model sonnet --settings '{"sandbox":{"enabled":false}}' --permission-mode manual
   co|co8: claude --model opus
+  cou: claude --model opus --settings '{"sandbox":{"enabled":false}}' --permission-mode manual
   co7: claude --model claude-opus-4-7
   co6: claude --model claude-opus-4-6[1m]
   co6k: claude --model claude-opus-4-6[200k]
