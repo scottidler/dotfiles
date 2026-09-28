@@ -243,6 +243,16 @@ harvest:
   # --dormant-after 1d drop-in override - selection needs enrich-status ok,
   # so the effective latency is the max of the two horizons.
   dormant-after: 1d
+  # Machine-dispatched subagent sessions: a hook or skill wrote the first
+  # prompt, so the session records a checklist run, not a decision. 2070 of
+  # 3332 sessions in the 2026-09 catalog were the security-review hook alone.
+  exclude-patterns:
+    - '^Review this change for security vulnerabilities'
+    - '^You previously flagged these candidate vulnerabilities'
+    - '^You are a per-PR maintenance agent for the babysit-prs skill'
+    - '^You are a \*\*self-review\*\* agent'
+    - '^reply with exactly:'
+    - '^Write one sentence summarizing the JSON on stdin'
   env-bootstrap:
     command: /home/saidler/.cargo/bin/manifest -C /home/saidler/repos/scottidler/keep/manifest.yml secrets env -f env
     env-file: /run/user/1000/sb-harvest.env
