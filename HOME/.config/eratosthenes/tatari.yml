@@ -25,8 +25,12 @@ triage:
   buckets:
     - name: needs-reply
       label: llm/needs-reply
-      description: a real human wrote to Scott and expects a reply or action
-      draft: true
+      description: >-
+        a real human wrote to Scott and expects a reply or action. NEVER this
+        bucket for automated/no-reply senders (Gemini, Anthropic account
+        notices, GitHub, AWS, Jira automation, CI, vendor bots) even if the
+        body asks Scott to do something -- those go in fyi-work or noise.
+      draft: false
     - name: fyi-work
       label: llm/fyi-work
       description: work-relevant notifications -- AWS, security, CI, vendors
