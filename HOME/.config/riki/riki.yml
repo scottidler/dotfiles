@@ -1,0 +1,28 @@
+# riki: home wiki on desk, behind Caddy + Authelia at riki.escote.duckdns.org.
+# No secrets here: the push credential is the deploy key wired by GIT_SSH_COMMAND
+# in ~/.config/systemd/user/riki.service.
+
+# Header identity requires a loopback listen address. 8080 is taken in homelab.
+listen: 127.0.0.1:8737
+
+content:
+  remote: git@github.com:scottidler/riki-content.git
+  branch: main
+  cache-dir: ~/.cache/riki/content.git
+
+git:
+  timeout: 30s
+  poll-interval: 30s
+  push-retries: 1
+
+committer:              # git committer; the author is always the editing user
+  name: riki
+  email: riki@localhost
+
+identity:
+  mode: header
+  email-header: Remote-Email   # set by Authelia via Caddy copy_headers
+  name-header: Remote-Name
+
+site:                          # needs riki >= v0.1.1; drop this block before rolling back to v0.1.0
+  name: Wiki

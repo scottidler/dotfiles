@@ -866,6 +866,12 @@ script:
     DEB=$(basename $URL)
     wget -q $URL
     sudo apt install ./$DEB && rm ./$DEB
+  riki: |
+    # riki wiki server; HOME/.config/riki/riki.yml + HOME/.config/systemd/user/riki.service
+    # come in via link:. Needs the binary (cargo install from scottidler/riki) and the
+    # deploy key at ~/.ssh/identities/home/riki-deploy (write key on scottidler/riki-content).
+    systemctl --user daemon-reload
+    systemctl --user enable --now riki.service
   riot: |
     sudo apt install -y lsb-release wget apt-transport-https
     sudo wget -qO /usr/share/keyrings/riot-im-archive-keyring.gpg https://packages.riot.im/debian/riot-im-archive-keyring.gpg

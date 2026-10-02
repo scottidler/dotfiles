@@ -1,0 +1,20 @@
+[Unit]
+Description=riki wiki server (git-backed Markdown wiki)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Config: ~/.config/riki/riki.yml. Listens on 127.0.0.1:8737; Caddy fronts it with Authelia.
+ExecStart=%h/.cargo/bin/riki
+Restart=on-failure
+RestartSec=2
+# Fetch and push to scottidler/riki-content with its write deploy key, not the home key.
+# GIT_SSH_COMMAND takes precedence over core.sshCommand (~/.gitconfig-ssh). -i alone is
+# not enough: ~/.ssh/config adds the home IdentityFile for github.com and the unit
+# inherits SSH_AUTH_SOCK, so the agent offers the home key first and riki authenticated
+# as user scottidler (2026-10-01). -F /dev/null + IdentityAgent=none leave only the
+# deploy key; `ssh -T` with these flags answers "Hi scottidler/riki-content!".
+Environment="GIT_SSH_COMMAND=ssh -F /dev/null -i %h/.ssh/identities/home/riki-deploy -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=accept-new"
+
+[Install]
+WantedBy=default.target
