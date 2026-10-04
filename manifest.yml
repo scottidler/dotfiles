@@ -202,6 +202,8 @@ apt:
   - slack-desktop
   # network traffic monitor and visualizer
   - sniffnet
+  # required by ~/bin/speedtest (scottidler/helpful)
+  - speedtest-cli
   - sqlite3
   # Wayland compositor (i3-compatible)
   - sway
