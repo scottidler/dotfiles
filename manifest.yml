@@ -736,6 +736,34 @@ script:
     gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
     powerprofilesctl set balanced
     echo "gnome idle screen-dimming disabled (profile: $(powerprofilesctl get))"
+  nerd-fonts: |
+    # src: https://github.com/ryanoasis/nerd-fonts (release archive unpacked into ~/.local/share/fonts)
+    if fc-list | grep -q "FiraCode Nerd Font"; then
+      echo "FiraCode Nerd Font already installed"
+    else
+      url=$(curl -fsSL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest | jq -r '.assets[] | select(.name == "FiraCode.tar.xz") | .browser_download_url')
+      [ -n "$url" ] || { echo "ERROR: FiraCode.tar.xz not found in latest nerd-fonts release" >&2; exit 1; }
+      mkdir -p ~/.local/share/fonts/FiraCodeNerdFont
+      curl -fsSL "$url" | tar -xJ -C ~/.local/share/fonts/FiraCodeNerdFont
+      fc-cache -f
+      echo "FiraCode Nerd Font installed"
+    fi
+  terminal-font: |
+    # Ptyxis (Ubuntu 26.04 default) and GNOME Terminal each keep the font in dconf; set whichever is present.
+    # Run inside the desktop session: gsettings needs the session bus.
+    font='FiraCode Nerd Font 14'
+    if gsettings list-schemas | grep -q '^org.gnome.Ptyxis$'; then
+      gsettings set org.gnome.Ptyxis use-system-font false
+      gsettings set org.gnome.Ptyxis font-name "$font"
+      echo "ptyxis font: $font"
+    fi
+    if gsettings list-schemas | grep -q '^org.gnome.Terminal.ProfilesList$'; then
+      uuid=$(gsettings get org.gnome.Terminal.ProfilesList default | tr -d "'")
+      profile="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$uuid/"
+      gsettings set "$profile" use-system-font false
+      gsettings set "$profile" font "$font"
+      echo "gnome-terminal font: $font"
+    fi
   handy: |
     # Local speech-to-text (cjpais/Handy). Needs >= 0.9.0 for per-ISA CPU
     # dispatch (desk is Sandy Bridge, no AVX2). The trigger is a GNOME
