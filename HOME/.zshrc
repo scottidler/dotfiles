@@ -47,7 +47,11 @@ if [ -d ~/.shell-completions.d/ ]; then
 fi
 
 # Load Antidote
-source ~/.antidote/antidote.zsh
+if [ -f ~/.antidote/antidote.zsh ]; then
+  source ~/.antidote/antidote.zsh
+else
+  echo "zshrc: antidote missing at ~/.antidote (fix: manifest -g mattmc3/antidote | bash)" >&2
+fi
 
 # case-insensitive matching so `re<TAB>` hits README.md
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
@@ -55,7 +59,7 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 # Recompile the bundle only when the .txt master-list changed, and do it
 # atomically (temp file + mv) so a concurrently-starting shell never sources
 # a half-written bundle.
-if [[ -f ~/.zsh_plugins.txt && ( ~/.zsh_plugins.txt -nt ~/.zsh_plugins.zsh || ! -f ~/.zsh_plugins.zsh ) ]]; then
+if command -v antidote >/dev/null && [[ -f ~/.zsh_plugins.txt && ( ~/.zsh_plugins.txt -nt ~/.zsh_plugins.zsh || ! -f ~/.zsh_plugins.zsh ) ]]; then
   antidote bundle < ~/.zsh_plugins.txt > ~/.zsh_plugins.zsh.tmp.$$
   mv ~/.zsh_plugins.zsh.tmp.$$ ~/.zsh_plugins.zsh
 fi
