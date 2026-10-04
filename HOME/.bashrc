@@ -164,7 +164,11 @@ if [ -f $HOME/.cargo/env ]; then
     source "$HOME/.cargo/env"
 fi
 
-. "/home/saidler/.deno/env"
+if [ -f "$HOME/.deno/env" ]; then
+    . "$HOME/.deno/env"
+elif ! command -v deno >/dev/null; then
+    echo "bashrc: deno missing: no $HOME/.deno/env and not on PATH" >&2
+fi
 
 
 # Added by Antigravity CLI installer

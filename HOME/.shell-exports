@@ -55,5 +55,7 @@ export SCCACHE_DIR="$HOME/.cache/sccache"
 export SCCACHE_CACHE_SIZE="20G"
 
 if [ -d ~/.shell-exports.d/ ]; then
-  for f in ~/.shell-exports.d/*; do . $f; done
+  for f in ~/.shell-exports.d/*; do
+    . "$f" || echo "shell-exports: failed to source $f" >&2
+  done
 fi

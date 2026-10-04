@@ -312,6 +312,7 @@ cargo:
   - cargo-udeps
   - cargo-update
   - cargo-upgrades
+  - deno
   - du-dust
   - eza
   - fd-find
@@ -808,6 +809,9 @@ script:
     sudo apt install -y ./keybase_amd64.deb
     rm -rf keybase_amd64.deb
     run_keybase
+  mise: |
+    # src: https://mise.jdx.dev/installing-mise.html
+    curl https://mise.run | sh
   kubectl: |
     sudo apt-get update && sudo apt-get install -y apt-transport-https
     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
