@@ -329,7 +329,6 @@ cargo:
   - skim
   - speedtest-rs
   - starship
-  - tail
   - tealdeer
   - tokei
   - tree-sitter-cli
