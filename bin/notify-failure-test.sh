@@ -89,6 +89,15 @@ eq "body names result and status" \
 eq "body names the log command" \
   "$(grep -c 'journalctl --user -u a.service -n 20' "${CASE}/curl.log")" "1"
 
+# 6b: with MONITOR_INVOCATION_ID the log command targets that exact run; without
+# it, the unit fallback applies.
+newcase invocation
+run_nf a.service NOTIFY_FAILURE_NOW=1000 MONITOR_INVOCATION_ID=abc123
+eq "invocation id: log command names the run" \
+  "$(grep -c 'journalctl --user _SYSTEMD_INVOCATION_ID=abc123' "${CASE}/curl.log")" "1"
+eq "invocation id: no unit fallback" \
+  "$(grep -c -- '-u a.service' "${CASE}/curl.log")" "0"
+
 # 7: a second start while the first is mid-send waits on the lock, then is
 # suppressed: one POST, stamp count 1 (not two POSTs).
 newcase race

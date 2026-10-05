@@ -528,6 +528,9 @@ script:
     [ ! -L ~/.config/systemd/user/aka-daemon.service ] || rm -f ~/.config/systemd/user/aka-daemon.service
     aka daemon --install
   git-maintenance: |
+    for u in git-maintenance@.service git-maintenance@hourly.timer git-maintenance@daily.timer git-maintenance@weekly.timer; do
+      [ ! -L ~/.config/systemd/user/$u ] || rm -f ~/.config/systemd/user/$u
+    done
     git maintenance start
   slack-deliver-timer: |
     primary-host || exit 0

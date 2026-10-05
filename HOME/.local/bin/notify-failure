@@ -9,7 +9,8 @@
 # held for the whole run, so a second start while the first is mid-retry-backoff
 # waits, then sees the stamp the first wrote and is suppressed.
 #
-# Env: NOTIFY_FAILURE_WINDOW (seconds, default 3600)
+# Env: MONITOR_INVOCATION_ID (set by systemd; log command targets that exact run)
+#      NOTIFY_FAILURE_WINDOW (seconds, default 3600)
 #      NOTIFY_FAILURE_BACKOFFS (space-separated retry delays, default "5 30 120")
 #      NOTIFY_FAILURE_NOW (epoch override, tests only)
 set -uo pipefail
@@ -49,7 +50,11 @@ fi
 host="$(hostname -s)"
 body="${unit} failed on ${host}: result=${MONITOR_SERVICE_RESULT:-unknown} status=${MONITOR_EXIT_STATUS:-unknown} code=${MONITOR_EXIT_CODE:-unknown}"
 [ "${suppressed}" -gt 0 ] && body+=" (${suppressed} further failures suppressed since the last alert)"
-body+=". Log: journalctl --user -u ${unit} -n 20"
+if [ -n "${MONITOR_INVOCATION_ID:-}" ]; then
+  body+=". Log: journalctl --user _SYSTEMD_INVOCATION_ID=${MONITOR_INVOCATION_ID}"
+else
+  body+=". Log: journalctl --user -u ${unit} -n 20"
+fi
 
 attempt=0
 for delay in "" ${backoffs}; do
