@@ -199,7 +199,6 @@ apt:
   - qpwgraph
   # readline wrapper for any REPL or command
   - rlwrap
-  - slack-desktop
   # network traffic monitor and visualizer
   - sniffnet
   # required by ~/bin/speedtest (scottidler/helpful)
@@ -917,6 +916,21 @@ script:
   rtx: |
     curl https://rtx.pub/rtx-latest-linux-x64 > ~/bin/rtx
     chmod +x ~/bin/rtx
+  slack-desktop: |
+    # Slack's own apt repo; Ubuntu's archives don't carry slack-desktop.
+    # Written as deb822 slack.sources to overwrite the copy a release upgrade
+    # leaves behind with `Enabled: no`. Suite is `jessie` for every release.
+    curl -fsSL https://packagecloud.io/slacktechnologies/slack/gpgkey \
+      | sudo gpg --dearmor --yes -o /usr/share/keyrings/slack-keyring.gpg
+    printf '%s\n' \
+      'Types: deb' \
+      'URIs: https://packagecloud.io/slacktechnologies/slack/debian/' \
+      'Suites: jessie' \
+      'Components: main' \
+      'Signed-By: /usr/share/keyrings/slack-keyring.gpg' \
+      | sudo tee /etc/apt/sources.list.d/slack.sources > /dev/null
+    sudo apt update
+    sudo apt install -y slack-desktop
   spotify: |
     # 1. Add the Spotify repository signing keys to be able to verify downloaded packages
     sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90
