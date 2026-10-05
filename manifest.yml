@@ -508,6 +508,15 @@ script:
     systemctl --user daemon-reload
     systemctl --user enable --now sweep-repos-watchdog.service
     echo "sweep-repos-watchdog installed"
+  notify-failure: |
+    # Fleet-wide OnFailure= -> ntfy alert. The service.d/ drop-in, the
+    # notify-failure@ template and its guard, notify-failure and ntfy-send all
+    # come in via link:. See docs/design/2026-10-05-user-unit-failure-visibility.md.
+    systemctl --user daemon-reload
+  swap-watch: |
+    # Unit and timer come in via link:; the timer was enabled by hand before.
+    systemctl --user daemon-reload
+    systemctl --user enable --now swap-watch.timer
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat

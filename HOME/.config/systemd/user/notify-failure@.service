@@ -1,0 +1,9 @@
+[Unit]
+Description=ntfy alert for failed unit %i
+
+[Service]
+Type=oneshot
+Environment=NOTIFY_FAILURE_WINDOW=3600
+# Worst case: flock wait behind a retrying instance plus 4 curls and 155s of backoff.
+TimeoutStartSec=400
+ExecStart=%h/.local/bin/notify-failure %i

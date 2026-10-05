@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ntfy-send --title T --priority P [--tag X]... BODY
+# One place for the ntfy topic. Exits non-zero on HTTP error or timeout.
+set -euo pipefail
+
+NTFY_TOPIC="escote-alerts-b6810699"
+NTFY_URL="${NTFY_URL:-https://ntfy.sh/${NTFY_TOPIC}}"
+
+usage() { echo "usage: ntfy-send --title T --priority P [--tag X]... BODY" >&2; exit 2; }
+
+title="" priority="default" tags="" body=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --title)    [ $# -ge 2 ] || usage; title="$2"; shift 2 ;;
+    --priority) [ $# -ge 2 ] || usage; priority="$2"; shift 2 ;;
+    --tag)      [ $# -ge 2 ] || usage; tags="${tags:+${tags},}$2"; shift 2 ;;
+    -h|--help)  usage ;;
+    --)         shift; body="$*"; break ;;
+    -*)         echo "ntfy-send: unknown flag $1" >&2; usage ;;
+    *)          body="$1"; shift ;;
+  esac
+done
+[ -n "${body}" ] || usage
+
+args=(-fsS --max-time 10 -H "Priority: ${priority}")
+[ -n "${title}" ] && args+=(-H "Title: ${title}")
+[ -n "${tags}" ] && args+=(-H "Tags: ${tags}")
+curl "${args[@]}" -d "${body}" "${NTFY_URL}" >/dev/null

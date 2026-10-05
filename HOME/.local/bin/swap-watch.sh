@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NTFY_TOPIC="escote-alerts-b6810699"
-NTFY_URL="https://ntfy.sh/${NTFY_TOPIC}"
+NTFY_SEND="$(dirname "$(readlink -f "$0")")/ntfy-send"
 STATE_DIR="${HOME}/.cache/swap-watch"
 STATE_FILE="${STATE_DIR}/state"
 mkdir -p "${STATE_DIR}"
@@ -78,7 +77,11 @@ fi
 
 send_alert() {
   local title="$1" msg="$2" priority="$3" tags="$4"
-  curl -s -H "Title: ${title}" -H "Priority: ${priority}" -H "Tags: ${tags}" -d "${msg}" "${NTFY_URL}" >/dev/null || true
+  local tag_args=() t
+  IFS=, read -ra tag_list <<< "${tags}"
+  for t in "${tag_list[@]}"; do tag_args+=(--tag "${t}"); done
+  "${NTFY_SEND}" --title "${title}" --priority "${priority}" "${tag_args[@]}" "${msg}" \
+    || echo "swap-watch: ntfy-send failed for: ${title}" >&2
 }
 
 # --- State transition alerts ---

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# notify-failure <unit>: ntfy alert for a failed user unit, run by
+# notify-failure@.service via OnFailure=. Sends host, unit, result, status and
+# the command to read the log; never journal content (the topic is public).
+#
+# Dedup: a stamp file per unit holds "<epoch-of-last-alert> <suppressed-count>".
+# A repeat inside NOTIFY_FAILURE_WINDOW seconds is dropped and counted; the next
+# alert after the window reports the count. A flock on a per-unit lock file is
+# held for the whole run, so a second start while the first is mid-retry-backoff
+# waits, then sees the stamp the first wrote and is suppressed.
+#
+# Env: NOTIFY_FAILURE_WINDOW (seconds, default 3600)
+#      NOTIFY_FAILURE_BACKOFFS (space-separated retry delays, default "5 30 120")
+#      NOTIFY_FAILURE_NOW (epoch override, tests only)
+set -uo pipefail
+
+unit="${1:?usage: notify-failure <unit>}"
+window="${NOTIFY_FAILURE_WINDOW:-3600}"
+backoffs="${NOTIFY_FAILURE_BACKOFFS:-5 30 120}"
+here="$(cd "$(dirname "$0")" && pwd)"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/notify-failure"
+safe="${unit//\//_}"
+stamp="${state}/${safe}.stamp"
+mkdir -p "${state}"
+
+log() { echo "notify-failure: $*" >&2; }
+
+exec 9>"${state}/${safe}.lock"
+flock 9
+
+now="${NOTIFY_FAILURE_NOW:-$(date +%s)}"
+last=0 suppressed=0
+if [ -f "${stamp}" ]; then
+  read -r last suppressed < "${stamp}" || true
+  [[ "${last}" =~ ^[0-9]+$ ]] || last=0
+  [[ "${suppressed}" =~ ^[0-9]+$ ]] || suppressed=0
+fi
+
+write_stamp() {
+  printf '%s %s\n' "$1" "$2" > "${stamp}.tmp" && mv "${stamp}.tmp" "${stamp}"
+}
+
+if [ "${last}" -gt 0 ] && [ $(( now - last )) -lt "${window}" ]; then
+  write_stamp "${last}" $(( suppressed + 1 ))
+  log "${unit}: suppressed (inside ${window}s window, count $(( suppressed + 1 )))"
+  exit 0
+fi
+
+host="$(hostname -s)"
+body="${unit} failed on ${host}: result=${MONITOR_SERVICE_RESULT:-unknown} status=${MONITOR_EXIT_STATUS:-unknown} code=${MONITOR_EXIT_CODE:-unknown}"
+[ "${suppressed}" -gt 0 ] && body+=" (${suppressed} further failures suppressed since the last alert)"
+body+=". Log: journalctl --user -u ${unit} -n 20"
+
+attempt=0
+for delay in "" ${backoffs}; do
+  [ -n "${delay}" ] && sleep "${delay}"
+  attempt=$(( attempt + 1 ))
+  if "${here}/ntfy-send" --title "${unit} failed on ${host}" --priority high \
+       --tag rotating_light --tag "${host}" "${body}"; then
+    write_stamp "${now}" 0
+    log "${unit}: alert sent (attempt ${attempt})"
+    exit 0
+  fi
+  log "${unit}: ntfy POST failed (attempt ${attempt})"
+done
+log "${unit}: all ${attempt} attempts failed, no stamp written; SessionStart check is the backstop"
+exit 0
