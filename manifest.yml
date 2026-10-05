@@ -168,7 +168,6 @@ apt:
   - memtest86+
   # userspace memory stress tester - runs inside the OS
   - memtester
-  - neovim
   - network-manager-openvpn
   - network-manager-openvpn-gnome
   - octarine
@@ -709,6 +708,33 @@ script:
     Pin-Priority: -1
     PIN
     echo "firefox: /opt install complete; snap removed + pinned out. Re-add the obsidian-borg web-ext after Firefox Sync login."
+  neovim-opt: |
+    # Upstream's documented Linux install (neovim INSTALL.md, "Pre-built archives"):
+    # the release tarball unpacked under /opt (today /opt/nvim-linux-x86_64). Not
+    # apt: Ubuntu's neovim lags upstream (26.04 ships 0.11.6), avante.nvim needs 0.12+.
+    # Release-resilient like nerd-fonts/handy: the asset is picked from releases/latest
+    # by pattern, and the /opt dir name comes from the tarball itself, so an upstream
+    # rename (nvim-linux64 -> nvim-linux-x86_64 happened in 0.10.4) still installs.
+    # Linked from /usr/local/bin so it has one fixed path. Re-run upgrades; skips when current.
+    LATEST=https://api.github.com/repos/neovim/neovim/releases/latest
+    JSON=$(curl -fsSL "$LATEST")
+    TAG=$(echo "$JSON" | jq -r .tag_name)
+    URL=$(echo "$JSON" | jq -r '.assets[] | select(.name | test("^nvim-linux.*x86_64.*\\.tar\\.gz$")) | .browser_download_url')
+    [ -n "$URL" ] && [ "$(echo "$URL" | wc -l)" -eq 1 ] || { echo "ERROR: no single linux x86_64 tarball in neovim $TAG" >&2; exit 1; }
+    CURRENT=$(/usr/local/bin/nvim --version 2>/dev/null | head -1 | awk '{print $2}')
+    if [ "$CURRENT" = "$TAG" ]; then
+      echo "neovim $CURRENT already installed ($(readlink -f /usr/local/bin/nvim))"
+    else
+      TMP=$(mktemp -d)
+      curl -fsSL -o "$TMP/nvim.tar.gz" "$URL"
+      DIR=$(tar -tzf "$TMP/nvim.tar.gz" | head -1 | cut -d/ -f1)
+      [ -n "$DIR" ] || { echo "ERROR: could not read top-level dir from $URL" >&2; exit 1; }
+      sudo rm -rf "/opt/$DIR"
+      sudo tar -C /opt -xzf "$TMP/nvim.tar.gz"
+      rm -rf "$TMP"
+      sudo ln -sf "/opt/$DIR/bin/nvim" /usr/local/bin/nvim
+      echo "neovim: $(/usr/local/bin/nvim --version | head -1) installed in /opt/$DIR"
+    fi
   exercism: |
     LATEST="https://api.github.com/repos/exercism/cli/releases/latest"
     URL=$(curl -sL "$LATEST" | jq -r ".assets[] | select(.name | test(\"$OS-$ARCH\")) | .browser_download_url")
