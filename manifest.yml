@@ -517,6 +517,61 @@ script:
     # Unit and timer come in via link:; the timer was enabled by hand before.
     systemctl --user daemon-reload
     systemctl --user enable --now swap-watch.timer
+  # --- Tool-owned user units -------------------------------------------------
+  # A unit written by a tool's installer is owned by that tool; dotfiles never
+  # symlinks it (installers rewrite their unit and would clobber or untrack a
+  # symlink). Each entry removes a stray dotfiles symlink for the unit, then
+  # calls the installer. Host-role entries start `primary-host || exit 0`
+  # (HOME/bin/primary-host; marker ~/.config/primary-host holds `hostname -s`).
+  # See docs/design/2026-10-05-user-unit-failure-visibility.md.
+  aka-daemon: |
+    [ ! -L ~/.config/systemd/user/aka-daemon.service ] || rm -f ~/.config/systemd/user/aka-daemon.service
+    aka daemon --install
+  git-maintenance: |
+    git maintenance start
+  slack-deliver-timer: |
+    primary-host || exit 0
+    for u in slack-deliver.service slack-deliver.timer; do
+      [ ! -L ~/.config/systemd/user/$u ] || rm -f ~/.config/systemd/user/$u
+    done
+    slack scheduled install-timer
+  clyde-bootstrap: |
+    primary-host || exit 0
+    for u in clyde-enrich.service clyde-enrich.timer clyde-reindex.service clyde-reindex.timer; do
+      [ ! -L ~/.config/systemd/user/$u ] || rm -f ~/.config/systemd/user/$u
+    done
+    # clyde's only installer: also migrates the permit DB/config/pricing and
+    # repoints the permit hook; --skip-statusline leaves the statusline to the
+    # claude repo. A no-op on a host that is already migrated.
+    clyde bootstrap --install-timer --skip-statusline
+  eratosthenes-service: |
+    primary-host || exit 0
+    for u in eratosthenes eratosthenes-digest eratosthenes-triage; do
+      for k in service timer; do
+        [ ! -L ~/.config/systemd/user/$u.$k ] || rm -f ~/.config/systemd/user/$u.$k
+      done
+    done
+    eratosthenes service install
+  sb-borg-daemon: |
+    primary-host || exit 0
+    [ ! -L ~/.config/systemd/user/borg.service ] || rm -f ~/.config/systemd/user/borg.service
+    sb borg daemon --install
+  sb-cortex-daemon: |
+    primary-host || exit 0
+    [ ! -L ~/.config/systemd/user/cortex.service ] || rm -f ~/.config/systemd/user/cortex.service
+    # --install only writes the unit; enabling is this entry's job.
+    sb cortex daemon --install
+    systemctl --user daemon-reload
+    systemctl --user enable --now cortex.service
+  sb-borg-harvest: |
+    primary-host || exit 0
+    for u in sb-harvest.service sb-harvest.timer; do
+      [ ! -L ~/.config/systemd/user/$u ] || rm -f ~/.config/systemd/user/$u
+    done
+    # --install only writes the units; enabling is this entry's job.
+    sb borg harvest --install
+    systemctl --user daemon-reload
+    systemctl --user enable --now sb-harvest.timer
   cheat: |
     curl https://cht.sh/:cht.sh > ~/bin/cheat
     chmod +x ~/bin/cheat

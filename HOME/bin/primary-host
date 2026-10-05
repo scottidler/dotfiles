@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# primary-host: exit 0 only when this machine is the primary host.
+#
+# The marker is a plain, untracked local file holding the primary's short
+# hostname, so moving primary from one machine to another is moving one file.
+# Host-role manifest scripts start with `primary-host || exit 0`.
+# PRIMARY_HOST_MARKER overrides the marker path (tests).
+set -u
+
+marker="${PRIMARY_HOST_MARKER:-${XDG_CONFIG_HOME:-$HOME/.config}/primary-host}"
+here="$(hostname -s)"
+
+if [ ! -f "${marker}" ]; then
+  echo "primary-host: no marker at ${marker}; this host (${here}) is not primary" >&2
+  exit 1
+fi
+
+primary="$(head -n 1 "${marker}" | tr -d '[:space:]')"
+if [ "${primary}" != "${here}" ]; then
+  echo "primary-host: marker ${marker} names '${primary}', this host is '${here}'" >&2
+  exit 1
+fi

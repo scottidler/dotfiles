@@ -30,11 +30,12 @@ tasks:
       exit "$WS_RC"
 
   test:
-    help: "Run the sweep-repos and notify-failure fixture matrices"
+    help: "Run the sweep-repos, notify-failure and primary-host fixture matrices"
     bash: |
       set -e
       bash bin/sweep-repos-test.sh
       bash bin/notify-failure-test.sh
+      bash bin/primary-host-test.sh
 
   ci:
     help: "Full CI pipeline (lint + test)"

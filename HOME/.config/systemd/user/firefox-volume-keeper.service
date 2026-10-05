@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep Firefox audio streams at 100% volume
+After=pipewire.service pipewire-pulse.service
+
+[Service]
+ExecStart=%h/.local/bin/firefox-volume-keeper
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
