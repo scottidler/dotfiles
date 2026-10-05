@@ -187,3 +187,23 @@
 
 ### Open questions
 - None. The Phase 7 question about the sb entries is closed by source: `borg/src/service.rs:269-270` already runs daemon-reload + enable --now; `cortex/src/daemon.rs:981-982` and `borg/src/harvest/timer.rs:142-143` only print those steps, so only cortex and harvest entries add them.
+
+## Implementation audit follow-up (panel round 1, synthesis /tmp/review-panel/J3YnnXHW/synthesis.md)
+
+Panel: architect complete; staff seat timed out (rc=124), its trace claims re-tested by the panel agent. Must-fix (rollout: hook link/registration, slack-cli release, install-timer on desk) is the finalization checkpoint. All five cheap-wins and all three defers were fixed rather than deferred.
+
+### Design decisions
+- claude a166369 (DELETE-REF): `--flag=` stripped before systemd exec prefixes (intent-guard.sh:delref_extract); quote-aware word splitter for Exec/desktop/cron lines; one `find -L` pass reports unreadable dirs and files as deny sources, naming the path (delref_load), covering unit dirs, subdirs, unit files, desktop dirs/entries and the bin dir; bash-style brace expansion of operands (delref_brace_expand: comma lists, nesting, empty alternatives) before mv drops its destination.
+- slack-cli 66f2567: optional `note` in CLI JSON (ScheduleJson) and MCP (ScheduleMessageResult), both built from ScheduledSend.deliverer_note via `from_send`; `exec_start_path_from_unit` (doctor.rs) rewritten as the exact inverse of install-timer's `exec_start_word`, proven by a render-then-parse round-trip over paths with space, `%`, `$`, quote, backslash and literal `%h`.
+- dotfiles 6f83af8: notify-failure uses MONITOR_INVOCATION_ID for `journalctl --user _SYSTEMD_INVOCATION_ID=<id>`, falling back to `-u <unit> -n 20`; git-maintenance manifest entry removes stray dotfiles symlinks for git-maintenance@.service and the hourly/daily/weekly timers (names match desk's live units).
+
+### Deviations
+- DELETE-REF: brace sequences (`{1..3}`) and expansions over 256 words are treated as unresolvable and skipped, same as `$x` (fail-open for that form).
+
+### Tradeoffs
+- DELETE-REF: expanded words replace the literal operand (keeping both would break mv's last-word-is-destination count).
+- slack-cli: `mod timer` made pub(crate) so the round-trip test uses the real renderer; unknown `%x` specifiers kept verbatim.
+
+### Open questions
+- DELETE-REF: a backslash-escaped space operand (`rm ~/My\ Tools/slack`) is split into two words by the shared tokenizer `lib.sh args`, so it is not matched. Fixing it changes the tokenizer every intent-guard rule shares; left for Scott's call.
+- Closed: the worker saw every DELETE-REF `rm` denied when it ran the hook inside the Bash sandbox (`crontab -l` fails there). Live hooks run outside the sandbox: a sandboxed `rm` of an unreferenced $TMPDIR file was allowed by the live guard on 2026-10-05.
