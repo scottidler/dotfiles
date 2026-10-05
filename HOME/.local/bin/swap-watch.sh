@@ -24,7 +24,7 @@ PSI_FULL_CRIT=5.0         # % of the last 60s with ALL tasks stalled on memory
 # there until faulted back. Ignore the byte tiers while RAM is plentiful and
 # PSI is quiet; PSI_FULL_CRIT above still escalates on its own.
 AVAIL_OK_MB=20480
-PSI_QUIET=1.0
+PSI_QUIET=${PSI_FULL_CRIT}   # no cliff below the PSI escalation point
 
 # Re-alert cadence: fire 🚨 every CRIT_REPEAT_INTERVAL checks while in crit/full
 # Timer runs every 5min, so 3 checks = every 15 minutes
