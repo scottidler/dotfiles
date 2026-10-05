@@ -232,3 +232,7 @@ Ordered by Scott ("fix?") after the background commit security review flagged tw
 - The background security review re-ran after 766d261 and reported two more summaries (fail-open/guard-bypass, parser-differential) without details. 15512f3 closes the sh -c reference gap; the `"$tmp"/*` residual is accepted by design. Neither mapping is confirmed against the review's own details.
 
 Suites after 15512f3: intent-guard 564/0, lib 147/0, every other hook suite unchanged and green.
+
+## claude history squashed (Scott, 2026-10-05)
+
+- claude commits 332643d, 27179fc, a166369, 766d261, 15512f3 cited above are squashed into ccc556c (identical tree). The other session's handoff commits 64dbc9a + b3f4f6f are squashed into 4805971, which precedes it. Pre-squash refs kept on branch backup-pre-squash-2026-10-05.
