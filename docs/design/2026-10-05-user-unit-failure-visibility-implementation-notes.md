@@ -207,3 +207,28 @@ Panel: architect complete; staff seat timed out (rc=124), its trace claims re-te
 ### Open questions
 - DELETE-REF: a backslash-escaped space operand (`rm ~/My\ Tools/slack`) is split into two words by the shared tokenizer `lib.sh args`, so it is not matched. Fixing it changes the tokenizer every intent-guard rule shares; left for Scott's call.
 - Closed: the worker saw every DELETE-REF `rm` denied when it ran the hook inside the Bash sandbox (`crontab -l` fails there). Live hooks run outside the sandbox: a sandboxed `rm` of an unreferenced $TMPDIR file was allowed by the live guard on 2026-10-05.
+
+## Phase 3 security follow-up (claude 766d261, 15512f3)
+
+Ordered by Scott ("fix?") after the background commit security review flagged two fail-open / parser-differential issues in intent-guard.sh.
+
+### Design decisions
+- 766d261: brace sequences expand bash-style (numeric with sign, zero-pad, step; single-letter alpha), nested with comma lists (delref_brace_seq / delref_brace_expand); checked against bash 5.3.9 on 29 forms.
+- 766d261: an expansion past DELREF_BRACE_MAX (256), or an endpoint over 15 significant digits, denies and names the cap (delref_check).
+- 766d261: a partly resolvable operand resolves to a pattern: `$x`, `${x}`, `$(...)`, backticks, special parameters, `~user` and unexpandable brace groups each become `*`, which also crosses `/` (over-match only); `~`, `$HOME`, `${HOME}` are substituted. A `..` after a wildcard collapses the prefix to `*`. The deny names operand, pattern, referenced path and file:line (delref_resolve / delref_check).
+- 766d261: lib.sh tokenize keeps backslash-escaped bytes and substitution delimiters inside the word; `args` applies bash quote removal to backslashes (lib.sh:scan/tokenize/argword). `nd` membership tested with `(i in nd)` (awk creates keys on read; measured 25 regressions across 6 suites until fixed).
+- 15512f3: a shell word (sh, bash, dash, zsh, ksh, mksh, ash; bare, by path, after exec prefixes, after /usr/bin/env) at any word position with a `c`-bearing option cluster makes the first non-option word a payload, re-split with the same words() and fed to the same emit(), recursively to DELREF_SHC_DEPTH=4; `$HOME`/`${HOME}` expanded inside payloads. Live: `rm ~/.cargo/bin/manifest` now denies naming sb-harvest.service:7 (was allow).
+
+### Deviations
+- 766d261: an operand whose literal text is only `/`, `*`, `?` (`"$tmp"/*`), or whose pattern normalizes to all wildcards, is skipped like a fully dynamic operand (`"$tmp"`): the accepted residual, documented in the rule comment. Layers 1-2 are the backstop.
+- 766d261: `args` also stops splitting a word at `$(`/`<(` parens (same parser-differential class; needed for `$HOME/.local/$(echo bin)/slack`). Backslash removal applies to `args` output only; tokword keeps backslashes.
+
+### Tradeoffs
+- `*` crossing `/` vs per-component `[^/]*`: crossing over-matches since `$x` can hold slashes.
+- A leading dynamic segment (`$x/foo`) matches `*/foo` anywhere vs skipping: denies only on a reference ending in that literal tail.
+- Shell word detected anywhere vs only in command position: can only add references.
+
+### Open questions
+- The background security review re-ran after 766d261 and reported two more summaries (fail-open/guard-bypass, parser-differential) without details. 15512f3 closes the sh -c reference gap; the `"$tmp"/*` residual is accepted by design. Neither mapping is confirmed against the review's own details.
+
+Suites after 15512f3: intent-guard 564/0, lib 147/0, every other hook suite unchanged and green.
