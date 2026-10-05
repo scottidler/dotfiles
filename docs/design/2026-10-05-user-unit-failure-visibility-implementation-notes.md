@@ -236,3 +236,40 @@ Suites after 15512f3: intent-guard 564/0, lib 147/0, every other hook suite unch
 ## claude history squashed (Scott, 2026-10-05)
 
 - claude commits 332643d, 27179fc, a166369, 766d261, 15512f3 cited above are squashed into ccc556c (identical tree). The other session's handoff commits 64dbc9a + b3f4f6f are squashed into 4805971, which precedes it. Pre-squash refs kept on branch backup-pre-squash-2026-10-05.
+
+## Phase 3 security follow-up 2: lib.sh word boundaries (claude 4fc0419)
+
+The background review of claude 74913d8 reported "security-control-regression in HOME/.claude/hooks/lib.sh". Measured with the hook suites, each run against 9c456c4's lib.sh (with every other 74913d8 file) and against 74913d8. The lead hypothesis was that a command inside a substitution stops surfacing as a statement. It does not hold: `stmts` yields substitution bodies through record_sub, which 74913d8 never touched, and every `echo $(...)`, `x=$(...)`, `cat <(...)`, backtick, `x\;...` and `\(...\)` row denies on all three versions. The regression is one level down, at words: the joined tokenizer made the literal text beside a substitution or an escape part of one word.
+
+Regression set (deny on 9c456c4, allow on 74913d8, deny after 4fc0419):
+- intent-guard GH-WRITE: `gh $(true)api -X DELETE repos/.../enforce_admins`, `gh "$(true)"api ...`
+- intent-guard ACLI: `acli $(true)jira workitem delete --key SEC-2997 --yes`
+- intent-guard SLEEP: `echo A; sleep $(true)26`, `sleep $(true)24; sleep 24`, `while true; do sleep "$(true)"30; done`
+- intent-guard LN: `ln $(true)-s /tmp /tmp/loop`, `ln -s /tmp $(true)/tmp/loop`, `ln -s x\>y /tmp /tmp/loop`, `ln -s\ /tmp /tmp/loop`
+- intent-guard DELETE-REF: `rm -v x\>y ~/.local/bin/slack`, `rm -v $(true)~/.local/bin/slack`, `rm -v "$(true)"~/.local/bin/slack`, `rm -v\ ~/.local/bin/slack`
+- branch-name-guard: `git $(true)checkout -b fix/x`, `git checkout $(true)-b fix/x`, `git "$(true)"switch -c Bad_Name`, `git switch "$(true)"-c Bad_Name`
+- git-release-guard (through cmdword_is): `sudo -u root\ git push --tags`
+- secret-echo, slack-post, manifest-scope, branch-pr-title: none.
+
+### Design decisions
+- tokenize takes a reading: SPLIT (9c456c4's boundaries) and JOINED (74913d8's boundaries) : lib.sh:tokenize : every gate matches on SPLIT because over-splitting fails closed; only bash-faithful path resolution needs JOINED.
+- `args` = SPLIT words with backslash quote removal kept; new `words` mode = JOINED words : lib.sh:args_out/argword : removing the backslash moved no verdict from deny to allow in the sweep, and it keeps `slack \write ...` denied (74913d8 closed it).
+- cmdword_is answers yes if either reading finds the verb : lib.sh:cmdword_ok/cmdword_in : SPLIT alone reopens `x=$(true) git push --tags` / `x=$(true) echo $GH_TOKEN` / `x=$(true) manifest apply` (allow on 9c456c4, closed by 74913d8); JOINED alone allows `sudo -u root\ git push --tags`.
+- flag_value, mask_optarg, cd_target, cd_at and stmts (find_dashc/find_eval) are back on SPLIT, so their output matches 9c456c4 exactly.
+- DELETE-REF takes the union of the operands from `words` and from `args` : intent-guard.sh:delref_operands/delref_check : `words` resolves `My\ Tools` and `a/$(x)/b`, and `args` surfaces `x\>y`'s neighbour and `$(true)~/...`, so DELETE-REF denies whatever either reading denies.
+
+### Deviations
+- The 7 lib-test rows 74913d8 added under `case_args` (joined behavior) now run as `case_words`, with the same inputs and expectations. Those assertions describe DELETE-REF's reading, which now lives in `words`. New `case_args` rows pin the SPLIT reading.
+- The brief's likely shape (joined reading only for DELETE-REF) would have left 4 DELETE-REF rows in the regression set, so DELETE-REF reads both and takes the union.
+
+### Tradeoffs
+- Union of two readings in DELETE-REF vs JOINED only: the union can add false-positive denies where a split fragment resolves to a referenced path (e.g. a lone `/` after `"$(x)/"`). I took the fail-closed side. No existing allow row moved.
+- cmdword_is union vs SPLIT only (exact 9c456c4): exact restoration would have reopened three bypasses that 74913d8 closed. The union keeps both guarantees.
+- Kept the redirect-strip `sed` in DELETE-REF ahead of both readings rather than moving redirect parsing into lib.sh. The SPLIT half already catches `x\>y`, and a lib-side redirect parser is a separate change.
+
+### Open questions
+- Pre-existing on 9c456c4, 74913d8 and 4fc0419 alike, and not part of this regression: a backslash-newline continuation is a bypass. `git push origin \<newline>--tags`, `git tag \<newline>-d v0.1.0` and `git \<newline>push --tags` all allow in git-release-guard, because boundary_at cuts a statement at the escaped newline. Bash runs them as one command. Fixing it changes statement splitting for every guard and needs its own sweep. Fix now or file?
+- Also pre-existing on all three: a substitution in verb position (`$(true) git push --tags`) and a `sleep` inside a double-quoted substitution (`echo "$(sleep 24; sleep 24)"`) allow.
+- Push of claude 4fc0419 to main is NOT done. This agent's Bash cwd resets on every call, so the required `cd` call followed by a bare `git push` call ran the push in the dotfiles worktree, where it was a no-op ("Everything up-to-date", dotfiles HEAD == origin/main == 71af39f). 4fc0419's parent is 74913d8 (origin/main), so it is a fast-forward. The parent has to run the push.
+
+Suites after 4fc0419: intent-guard 585/0, lib 154/0, git-release-guard 289/0, branch-name-guard 103/0, manifest-scope-guard 67/0, secret-echo-guard 207/0, slack-post-guard 149/0, every other suite green; otto ci green.
