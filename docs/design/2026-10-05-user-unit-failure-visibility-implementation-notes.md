@@ -173,3 +173,17 @@
 - Orchestrator to run `slack scheduled install-timer` on desk after the slack-cli release (excluded from this phase), then re-check acceptance criteria 4 and 5 against main.
 - Should acceptance criterion 2's glob be amended to skip masked units (or should the GNOME Smartcard mask be removed)? As written it can never pass on this desktop.
 - `ydotoold.service` retired via `rkvr rmrf` after confirming `ydotoold` disabled/inactive and `ydotool.service` enabled/active.
+
+## Finalization: acceptance-criterion amendment
+
+### Design decisions
+- None.
+
+### Deviations
+- Acceptance criterion 2 and Phase 7's verify success criterion amended (doc defect, not code): the `*.service` glob includes the GNOME mask `org.gnome.SettingsDaemon.Smartcard.service -> /dev/null` (15 Apr), which `systemd-analyze --user verify` always rejects (`Unit ... is masked.`, rc 1). Amended command excludes `/dev/null` links; observed `rc=0` on desk after Phase 7.
+
+### Tradeoffs
+- Exclude masked units in the criterion vs. removing the GNOME mask: the mask is GNOME's, outside this doc's ownership; the criterion was the defect.
+
+### Open questions
+- None. The Phase 7 question about the sb entries is closed by source: `borg/src/service.rs:269-270` already runs daemon-reload + enable --now; `cortex/src/daemon.rs:981-982` and `borg/src/harvest/timer.rs:142-143` only print those steps, so only cortex and harvest entries add them.
