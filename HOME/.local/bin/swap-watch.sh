@@ -21,6 +21,11 @@ CRIT_MB=14746
 FULL_MB=16000             # >99% of disk swap — system is about to seize
 GROWTH_MB_ALERT=512
 PSI_FULL_CRIT=5.0         # % of the last 60s with ALL tasks stalled on memory
+# Disk swap bytes alone are not pressure: pages parked after a past spike sit
+# there until faulted back. Ignore the byte tiers while RAM is plentiful and
+# PSI is quiet; PSI_FULL_CRIT above still escalates on its own.
+AVAIL_OK_MB=20480
+PSI_QUIET=1.0
 
 # Re-alert cadence: fire 🚨 every CRIT_REPEAT_INTERVAL checks while in crit/full
 # Timer runs every 5min, so 3 checks = every 15 minutes
@@ -52,6 +57,14 @@ elif [ "${disk_used_mb}" -ge "${CRIT_MB}" ]; then
   new_state="crit"
 elif [ "${disk_used_mb}" -ge "${WARN_MB}" ]; then
   new_state="warn"
+fi
+
+avail_mb=$(awk '/^MemAvailable:/{printf "%d", $2/1024}' /proc/meminfo)
+avail_mb=${avail_mb:-0}
+ram_quiet=0
+if [ "${avail_mb}" -ge "${AVAIL_OK_MB}" ] && awk -v v="${psi_full_avg60}" -v t="${PSI_QUIET}" 'BEGIN{exit !(v<t)}'; then
+  ram_quiet=1
+  new_state="ok"
 fi
 
 psi_crit=0
@@ -120,7 +133,7 @@ if [ "${new_state}" = "${prev_state}" ]; then
 fi
 
 # --- Growth alert (escalated if already in crit/full) ---
-if [ "${growth_mb}" -ge "${GROWTH_MB_ALERT}" ]; then
+if [ "${growth_mb}" -ge "${GROWTH_MB_ALERT}" ] && [ "${ram_quiet}" -eq 0 ]; then
   if [ "${new_state}" = "crit" ] || [ "${new_state}" = "full" ]; then
     send_alert "🚨 Swap surging while critical on desk" \
       "Disk swap grew ${growth_mb}MB in the last check, now ${disk_used_mb}MB. Already in ${new_state} state." \
