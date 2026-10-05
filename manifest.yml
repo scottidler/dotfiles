@@ -96,6 +96,8 @@ apt:
   - fuse3
   # optimize Linux system performance for gaming
   - gamemode
+  # GPU-accelerated terminal emulator (kitty graphics protocol)
+  - ghostty
   # GIF image manipulation tool
   - gifsicle
   - gimp
