@@ -347,7 +347,7 @@ github:
       bin/aka-loader.zsh: ~/.shell-functions.d/aka-loader.zsh
   scottidler/nvim:
     link:
-      ./: ~/.config/nvim/
+      ./: ~/.config/nvim
   scottidler/cidr:
     cargo:
     - ./
