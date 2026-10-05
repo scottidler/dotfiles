@@ -192,6 +192,8 @@ apt:
   # PDF utilities: pdftotext, pdfinfo, pdfimages, etc.
   - poppler-utils
   - portaudio19-dev
+  # protoc: required to build sb (libsignal build scripts)
+  - protobuf-compiler
   - python3-cairo-dev
   - python3-dev
   - python3.12-venv
