@@ -44,6 +44,8 @@ triage:
       label: llm/noise
       description: everything else -- marketing, newsletters, social
 
+max-skipped-threads: 10
+
 message-filters:
   # Bots: GitHub/CI notifications via the sre@ group (backstage-tatari[bot])
   # -> move straight out of the inbox into Bots. Listed first so it wins over
