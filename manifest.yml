@@ -1057,7 +1057,9 @@ script:
     sudo apt update
     sudo apt install riot-web
   rust: |
-    curl https://sh.rustup.rs -sSf | sh
+    curl https://sh.rustup.rs -sSf | sh -s -- -y --profile default
+    # otto ci and the editor need these; ripr came up with the minimal profile (2026-10-06).
+    ~/.cargo/bin/rustup component add clippy rustfmt rust-analyzer rust-src llvm-tools
   rtx: |
     curl https://rtx.pub/rtx-latest-linux-x64 > ~/bin/rtx
     chmod +x ~/bin/rtx
@@ -1113,7 +1115,12 @@ script:
     systemctl --user start syncthing.service
   vim+git: |
     sudo apt-get install -y vim git
-    sudo update-alternatives --set editor /usr/bin/vim.basic
+    if [ -x /usr/local/bin/nvim ]; then
+      sudo update-alternatives --install /usr/bin/editor editor /usr/local/bin/nvim 60
+      sudo update-alternatives --set editor /usr/local/bin/nvim
+    else
+      sudo update-alternatives --set editor /usr/bin/vim.basic
+    fi
   virtualbox: |
     wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
     wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add -
