@@ -711,17 +711,23 @@ script:
     EOF
     sudo truncate -s 0 /etc/apt/sources.list.d/spotify.list
 
+    # steam-launcher's postinst owns steam-stable.list and steam-beta.list
+    # (Signed-By /usr/share/keyrings/steam.gpg); a second source with another
+    # key path is a hard apt error (ripr, 2026-10-06). Bootstrap only.
     sudo dpkg --add-architecture i386
-    fetch_key https://repo.steampowered.com/steam/archive/stable/steam.gpg /etc/apt/keyrings/steam.gpg
-    sudo tee /etc/apt/sources.list.d/steam.sources >/dev/null <<'EOF'
+    if [ -f /etc/apt/sources.list.d/steam-stable.list ]; then
+      sudo rm -f /etc/apt/sources.list.d/steam.sources
+    else
+      fetch_key https://repo.steampowered.com/steam/archive/stable/steam.gpg /usr/share/keyrings/steam.gpg
+      sudo tee /etc/apt/sources.list.d/steam.sources >/dev/null <<'EOF'
     Types: deb
     URIs: https://repo.steampowered.com/steam/
     Suites: stable
     Components: steam
     Architectures: amd64 i386
-    Signed-By: /etc/apt/keyrings/steam.gpg
+    Signed-By: /usr/share/keyrings/steam.gpg
     EOF
-    sudo rm -f /etc/apt/sources.list.d/steam.list /etc/apt/sources.list.d/steam-stable.list
+    fi
 
     # tailscale publishes per-release suites (noble, resolute, ...); unquoted
     # heredoc so the host's codename is substituted.
