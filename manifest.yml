@@ -141,11 +141,15 @@ apt:
   - libgirepository1.0-dev
   - libglib2.0-dev
   - libgtk-4-dev
+  # openshotx: gstreamer screen capture and leptonica/tesseract OCR
+  - libgstreamer1.0-dev
+  - libgstreamer-plugins-base1.0-dev
   # ICU Unicode and globalization dev headers
   - libicu-dev
   - libjpeg-dev
   # ref: https://github.com/mongodb-js/kerberos/issues/45
   - libkrb5-dev
+  - libleptonica-dev
   # provides notify-send
   - libnotify-bin
   - libpipewire-0.3-dev
@@ -158,6 +162,7 @@ apt:
   - libsnappy-dev
   - libsqlite3-dev
   - libssl-dev
+  - libtesseract-dev
   - libxml2-dev
   - libxmlsec1-dev
   # neovim plugin dependency
@@ -729,6 +734,16 @@ script:
     fi
 
     sudo apt-get update
+  zig: |
+    # herdr's build compiles vendored libghostty-vt with zig.
+    v=0.15.2
+    if ! /opt/zig-$v/zig version 2>/dev/null | grep -qx "$v"; then
+      curl -fsSL -o /tmp/zig.tar.xz "https://ziglang.org/download/$v/zig-x86_64-linux-$v.tar.xz"
+      sudo tar -C /opt -xf /tmp/zig.tar.xz
+      sudo rm -rf "/opt/zig-$v"
+      sudo mv "/opt/zig-x86_64-linux-$v" "/opt/zig-$v"
+    fi
+    sudo ln -sf "/opt/zig-$v/zig" /usr/local/bin/zig
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
