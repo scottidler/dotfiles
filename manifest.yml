@@ -701,6 +701,8 @@ script:
     EOF
     sudo systemctl daemon-reload
     sudo systemctl restart systemd-zram-setup@zram0.service
+    # Setting up the device does not activate it as swap before a reboot (ripr, 2026-10-06).
+    sudo systemctl start dev-zram0.swap
     echo "swap-tuning installed: $(swapon --show | tr '\n' ' ')"
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
