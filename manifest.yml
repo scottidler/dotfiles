@@ -202,8 +202,12 @@ apt:
   - portaudio19-dev
   # protoc: required to build sb (libsignal build scripts)
   - protobuf-compiler
+  - python3-aiohttp
+  - python3-bs4
   - python3-cairo-dev
   - python3-dev
+  # ruamel.yaml (YAML class API) for scottidler/sci-fi
+  - python3-ruamel.yaml
   - python3-venv
   - qbittorrent
   - qemu-system-x86
@@ -256,38 +260,13 @@ dnf:
   - openssl-devel
   - python3-devel
 
-pip3:
-  items:
-  - argh
-  - numpy
-  - twine
-  - wheel
-  - addict
-  - aiohttp
-  - ipython
-  - requests
-  - ruamel.yaml
-  - cryptography
-  distutils:
-  - Cython
-  - pexpect
-  - pyasn1-modules
-  - pycairo
-  - pycups
-  - pypng
-  - PyQt5
-  - PyTrie
-  - pyxdg
-  - PyYAML
-  - simplejson
-  - sip
-  - u-msgpack-python
 uv-tool:
   items:
   - alembic
   - cookiecutter
   - cruft
   - docling
+  - git-big-picture
   - git+https://github.com/jemmanuele/gslide-mcp.git
   - ipython
   - "markitdown[all]"
@@ -329,9 +308,9 @@ cargo:
   - cargo-udeps
   - cargo-update
   - cargo-upgrades
-  - deno
+  - deno --locked
   - du-dust
-  - eza
+  - eza --locked
   - fd-find
   - fend
   - grex
@@ -405,20 +384,17 @@ github:
     cargo:
     - ./
   scottidler/tmp:
-    link:
-      bin/tmp: ~/bin/tmp
+    cargo:
+    - ./
   scottidler/helpful:
     link:
       bin/say: ~/bin/say
       bin/speedtest: ~/bin/speedtest
       bin/tab: ~/bin/tab
-      bin/tab1: ~/bin/tab1
       bin/tab2: ~/bin/tab2
-      bin/tab3: ~/bin/tab3
       bin/tab4: ~/bin/tab4
       bin/toggle: ~/bin/toggle
       bin/prepend: ~/bin/prepend
-      bin/probe: ~/bin/probe
       bin/toggle-remote-url: ~/bin/toggle-remote-url
       bin/env.py: ~/bin/env
       shell-functions.sh: ~/.shell-functions.d/helpful.sh
@@ -428,9 +404,6 @@ github:
   scottidler/pimp:
     link:
       pimp: ~/bin/pimp
-  scottidler/ls-stat:
-    link:
-      ls-stat: ~/bin/ls-stat
   scottidler/xpndr:
     link:
       xpndr: ~/bin/xpndr
@@ -452,9 +425,6 @@ github:
   sahsanu/lectl:
     link:
       lectl: ~/bin/lectl
-  esc/git-big-picture:
-    link:
-      git-big-picture: ~/bin/gbp
   awslabs/awscli-aliases:
     link:
       alias: ~/.awscli-aliases
@@ -492,6 +462,17 @@ github:
       bin/tfenv: ~/bin/tfenv
 
 script:
+  beads: |
+    VERSION=0.46.0
+    if [ "$(~/bin/bd --version 2>/dev/null | awk '{print $3}')" = "$VERSION" ]; then
+      echo "bd $VERSION already installed"
+    else
+      latest \
+        "_linux_amd64.tar.gz" \
+        "https://api.github.com/repos/gastownhall/beads/releases/tags/v$VERSION" \
+        "bd"
+      echo "bd $VERSION installed successfully."
+    fi
   btop: |
     latest \
       "-x86_64-linux-musl.tbz" \
@@ -968,9 +949,19 @@ script:
     net.ipv6.conf.all.disable_policy = 1
     net.ipv6.conf.default.disable_ipv6 = 1
     net.ipv6.conf.default.disable_policy = 1
-    net.ipv6.conf.wlp2s0.disable_ipv6 = 1
     EOF
     sudo sysctl --load /etc/sysctl.d/99-disable-ipv6.conf
+    # NetworkManager flips disable_ipv6 back to 0 on any connection whose
+    # ipv6.method is auto (ripr enp173s0, 2026-10-06), so disable it per
+    # connection rather than naming an interface.
+    if command -v nmcli >/dev/null; then
+      nmcli -g UUID,TYPE connection show | while IFS=: read -r uuid type; do
+        case "$type" in
+          802-3-ethernet|802-11-wireless)
+            sudo nmcli connection modify "$uuid" ipv6.method disabled ;;
+        esac
+      done
+    fi
     # sshd's default AddressFamily any tries to bind the X11 display socket on
     # ::1 too, which fails with IPv6 off: "Failed to allocate internet-domain
     # X11 display socket", so every ssh -X gets "X11 forwarding request failed"
