@@ -206,6 +206,7 @@ apt:
   - python3-dev
   - python3-venv
   - qbittorrent
+  - qemu-system-x86
   # PipeWire graph/patchbay GUI
   - qpwgraph
   # readline wrapper for any REPL or command
@@ -762,6 +763,21 @@ script:
   gnome-dconf: |
     # Keybindings, workspaces, dock and extension settings; extensions themselves are per-user installs.
     dconf load / < "$HOME/repos/scottidler/dotfiles/gnome/gnome.ini"
+  clamav-run-dir: |
+    # clamav-daemon fails to start when /run/clamav is missing after boot.
+    sudo mkdir -p /etc/systemd/system/clamav-daemon.service.d
+    sudo tee /etc/systemd/system/clamav-daemon.service.d/extend.conf >/dev/null <<'EOF'
+    [Service]
+    ExecStartPre=-/bin/mkdir -p /run/clamav
+    ExecStartPre=/bin/chown clamav /run/clamav
+    EOF
+    sudo systemctl daemon-reload
+  mask-units: |
+    # cups-browsed auto-adds every network printer; falcon-sensor is masked only where installed.
+    sudo systemctl mask cups-browsed.service
+    if systemctl cat falcon-sensor.service >/dev/null 2>&1; then
+      sudo systemctl mask falcon-sensor.service
+    fi
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
