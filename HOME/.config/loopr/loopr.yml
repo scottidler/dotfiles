@@ -1,0 +1,12 @@
+debug: true
+
+agents:
+  enabled: true
+  auto_start_implementer: true
+  auto_start_reviewer: true
+  auto_start_coordinator: false
+  pull_based_workers: true
+  worker_pool_size: 2
+
+validator:
+  enabled: false

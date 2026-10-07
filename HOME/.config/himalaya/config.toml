@@ -1,0 +1,24 @@
+[accounts.tatari]
+email = "scott.idler@tatari.tv"
+default = true
+
+folder.aliases.inbox = "INBOX"
+folder.aliases.sent = "[Gmail]/Sent Mail"
+folder.aliases.drafts = "[Gmail]/Drafts"
+folder.aliases.trash = "[Gmail]/Trash"
+
+backend.type = "imap"
+backend.host = "imap.gmail.com"
+backend.port = 993
+backend.encryption.type = "tls"
+backend.login = "scott.idler@tatari.tv"
+backend.auth.type = "password"
+backend.auth.cmd = "gpg --decrypt ~/.config/himalaya/himalaya-tatari.gpg"
+
+message.send.backend.type = "smtp"
+message.send.backend.host = "smtp.gmail.com"
+message.send.backend.port = 465
+message.send.backend.encryption.type = "tls"
+message.send.backend.login = "scott.idler@tatari.tv"
+message.send.backend.auth.type = "password"
+message.send.backend.auth.cmd = "gpg --decrypt ~/.config/himalaya/himalaya-tatari.gpg"

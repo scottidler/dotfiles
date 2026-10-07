@@ -1,0 +1,12 @@
+[accounts.work]
+default = true
+folder = "INBOX"
+backend.type = "imap"
+backend.host = "imap.gmail.com"
+backend.port = 993
+backend.encryption = "tls"
+backend.login = "scott.idler@tatari.tv"
+backend.auth.type = "password"
+backend.auth.command = "pass show work"
+on-message-added.notify.summary = "📫 New message from {sender}"
+on-message-added.notify.body = "{subject}"

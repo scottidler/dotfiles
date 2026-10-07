@@ -1,0 +1,21 @@
+[tools]
+aws-vault = "latest"
+awscli = { version = "latest", symlink_bins = "true" }
+jq = "latest"
+yq = "latest"
+kubectl = "latest"
+terraform = "latest"
+python = ['3.11', '3.10']
+tflint = "latest"
+k9s = "0.50.6"
+pre-commit = "latest"
+node = "latest"
+argocd = "latest"
+kustomize = "latest"
+helm = "latest"
+redis = "latest"
+postgres = "latest"
+yarn = "1.22.22"
+"npm:@earendil-works/pi-coding-agent" = "latest"
+"npm:web-ext" = "latest"
+"github:danielmiessler/fabric" = { version = "1.4.470", exe = "fabric" }

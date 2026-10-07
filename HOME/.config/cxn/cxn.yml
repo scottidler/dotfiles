@@ -1,0 +1,35 @@
+# cxn.yml - Connection testing configuration
+
+timeout: 1000
+retries: 3
+interval: 5
+
+hosts:
+  Gateway:
+    address: "10.10.10.1"
+    ping: true
+
+  Cloudkey:
+    address: "10.10.10.2"
+    ping: true
+
+  Google DNS:
+    address: "8.8.8.8"
+    ping: true
+
+  Cloudflare:
+    address: "1.1.1.1"
+    ping: true
+
+  Google:
+    address: "google.com"
+    ping: true
+    dns: true
+
+  GitHub:
+    address: "github.com"
+    dns: true
+
+  DNS Resolver:
+    address: "whoami.akamai.net"
+    dns: true

@@ -1,0 +1,4 @@
+logging:
+  cortex:
+    daemon:
+      status: true

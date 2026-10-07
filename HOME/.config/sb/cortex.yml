@@ -39,6 +39,8 @@ actions:
       daily: [tags]
     path-exempt:
       "inbox/**": [origin, tags]
+      # home.md is the vault dashboard, not a topic note.
+      "home.md": [tags]
       "notes/ai/**": [origin, tags]
       "entities/**": [origin, tags]
       "system/**": [tags]

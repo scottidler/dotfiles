@@ -1,0 +1,83 @@
+# kondo.yml - file organization configuration
+#
+# Each rule maps file extensions to a destination directory.
+# Source directories are scanned for matching files and moved to the destination.
+# Paths support ~ for home directory expansion.
+
+# dashify: rename files using dashify before moving (lowercase, spaces/underscores -> dashes)
+dashify: true
+
+# source directories to scan for files to organize
+sources:
+  - ~/Documents
+  - ~/Downloads
+  - ~/Music
+  - ~/Pictures
+  - ~/Videos
+
+# rules: map destination directories to file extension patterns
+rules:
+  ~/Documents:
+    - .pdf
+    - .doc
+    - .docx
+    - .txt
+    - .rtf
+    - .odt
+    - .xls
+    - .xlsx
+    - .csv
+    - .ppt
+    - .pptx
+    - .cfg
+    - .conf
+    - .ini
+    - .json
+    - .xml
+    - .yaml
+    - .yml
+    - .toml
+    - .md
+    - .epub
+    - .mobi
+
+  ~/Music:
+    - .mp3
+    - .wav
+    - .flac
+    - .aac
+    - .ogg
+    - .wma
+    - .m4a
+    - .opus
+    - .aiff
+    - .alac
+
+  ~/Pictures:
+    - .png
+    - .jpg
+    - .jpeg
+    - .gif
+    - .bmp
+    - .svg
+    - .webp
+    - .ico
+    - .tiff
+    - .tif
+    - .heic
+    - .heif
+    - .avif
+    - .raw
+
+  ~/Videos:
+    - .mp4
+    - .mkv
+    - .avi
+    - .mov
+    - .wmv
+    - .flv
+    - .webm
+    - .m4v
+    - .mpg
+    - .mpeg
+    - .3gp

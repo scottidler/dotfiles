@@ -1,0 +1,375 @@
+# TaskDaemon User Configuration
+#
+# This is the global user config loaded from ~/.config/taskdaemon/taskdaemon.yml
+# Per-project configs can override at <project>/.taskdaemon.yml
+
+# === Debug Configuration ===
+debug:
+  # Log all REPL conversations to ~/.taskdaemon/conversations/ as JSONL
+  log-conversations: true
+
+# === Logging Configuration ===
+log-level: INFO
+
+# === LLM Configuration ===
+# Format: "provider/model" for default selection
+llm:
+  default: openai/gpt-5.2
+  timeout-ms: 600000
+
+  providers:
+    openai:
+      api-key-env: OPENAI_API_KEY
+      api-key-file: ~/.config/open-ai/tatari-chatgpt-api-key
+      base-url: https://api.openai.com
+      models:
+        # GPT-5.x family (verified via API 2026-01-19)
+        gpt-5.2:
+          max-tokens: 128000  # verified: "supports at most 128000 completion tokens"
+        # GPT-4.x (verified via API 2026-01-19)
+        gpt-4o:
+          max-tokens: 16384   # verified: "supports at most 16384 completion tokens"
+        gpt-4o-mini:
+          max-tokens: 16384
+        # o-series reasoning (verified via API 2026-01-19)
+        o1:
+          max-tokens: 100000  # verified: "supports at most 100000 completion tokens"
+        o3-mini:
+          max-tokens: 100000  # verified: "supports at most 100000 completion tokens"
+
+    anthropic:
+      api-key-env: ESCOTE_ANTHROPIC_API_KEY
+      # api-key-file: ~/.config/anthropic/api-key
+      base-url: https://api.anthropic.com
+      models:
+        claude-sonnet-4-20250514:
+          max-tokens: 8192
+        claude-opus-4-20250514:
+          max-tokens: 8192
+
+# === Concurrency Limits ===
+concurrency:
+  max-loops: 50
+  max-api-calls: 10
+  max-worktrees: 50
+
+# === Validation Defaults ===
+validation:
+  command: "otto ci"
+  iteration-timeout-ms: 300000
+  max-iterations: 100
+
+# === Git Configuration ===
+git:
+  worktree-dir: /tmp/taskdaemon/worktrees
+  disk-quota-gb: 100
+
+# === Storage Configuration ===
+# Uses XDG default: ~/.local/share/taskdaemon
+# Uncomment to override:
+# storage:
+#   taskstore-dir: ~/.local/share/taskdaemon
+#   jsonl-warn-mb: 100
+#   jsonl-error-mb: 500
+
+# === Loop Type Paths ===
+loops:
+  paths:
+    - builtin
+    - ~/.config/taskdaemon/loops
+    - .taskdaemon/loops
+  # Default loop type for TUI quick-create (when user presses 'n')
+  # Leave empty to prompt for type selection, or set to any loaded loop type name
+  default-type:
+
+# =============================================================================
+# BUILT-IN LOOP TYPE DEFINITIONS
+# =============================================================================
+#
+# These 4 loop types ship embedded in the binary.
+# Users can override them by placing a file with the same name in their
+# ~/.config/taskdaemon/loops/ or <project>/.taskdaemon/loops/ directory.
+
+# -----------------------------------------------------------------------------
+# PLAN LOOP
+# -----------------------------------------------------------------------------
+# Level 1: Takes user idea, produces Plan markdown using Rule of Five
+# Input: User's feature request or idea
+# Output: Plan markdown document
+# -----------------------------------------------------------------------------
+plan:
+  # No parent - this is a root loop type
+  description: "Create or refine a Plan document using Rule of Five methodology"
+
+  prompt-template: |
+    You are creating a Plan document for the following request:
+
+    ## User Request
+    {{user-request}}
+
+    {{#if current-plan}}
+    ## Current Plan Draft
+    {{current-plan}}
+    {{/if}}
+
+    ## Review Pass
+    This is review pass {{review-pass}} of 5.
+
+    Focus areas by pass:
+    - Pass 1: Completeness - Are all sections filled? Missing requirements?
+    - Pass 2: Correctness - Logical errors? Wrong assumptions?
+    - Pass 3: Edge Cases - What could go wrong? Error handling?
+    - Pass 4: Architecture - Does this fit the larger system?
+    - Pass 5: Clarity - Is it implementable? Ambiguous sections?
+
+    {{#if progress}}
+    ## Previous Iterations
+    {{progress}}
+    {{/if}}
+
+    ## Instructions
+    Review and improve the Plan. Write the complete updated Plan to:
+    {{output-file}}
+
+    When the Plan is complete and passes all 5 review passes, ensure validation succeeds.
+
+  validation-command: "otto ci"
+  success-exit-code: 0
+  max-iterations: 25
+  iteration-timeout-ms: 300000
+
+  inputs:
+    - user-request
+    - current-plan
+    - review-pass
+  outputs:
+    - plan-markdown
+  tools:
+    - read_file
+    - write_file
+    - edit_file
+    - list_directory
+    - glob
+    - grep
+    - complete_task
+
+# -----------------------------------------------------------------------------
+# SPEC LOOP
+# -----------------------------------------------------------------------------
+# Level 2: Takes completed Plan, produces N Spec markdowns with dependencies
+# Input: Plan markdown
+# Output: Multiple Spec markdown documents
+# -----------------------------------------------------------------------------
+spec:
+  parent: plan
+  description: "Decompose a Plan into atomic Spec documents with dependencies"
+
+  prompt-template: |
+    You are decomposing a Plan into Specs (atomic work units).
+
+    ## Plan Content
+    {{plan-content}}
+
+    {{#if existing-specs}}
+    ## Existing Specs
+    {{existing-specs}}
+    {{/if}}
+
+    {{#if coverage-gaps}}
+    ## Coverage Analysis
+    What the Plan covers that Specs don't yet:
+    {{coverage-gaps}}
+    {{/if}}
+
+    {{#if progress}}
+    ## Previous Iterations
+    {{progress}}
+    {{/if}}
+
+    ## Instructions
+    Create Spec documents for uncovered functionality. Each Spec should:
+    - Be atomic (completable in one focused session)
+    - Have clear acceptance criteria
+    - Define phases for implementation
+    - Specify dependencies on other Specs (if any)
+
+    Write Specs to the specs output directory.
+    Update the specs index with metadata including deps field.
+
+    When all Plan functionality is covered by Specs, validation will succeed.
+
+  validation-command: "otto ci"
+  success-exit-code: 0
+  max-iterations: 50
+  iteration-timeout-ms: 300000
+
+  inputs:
+    - plan-content
+    - existing-specs
+    - coverage-gaps
+  outputs:
+    - spec-markdowns
+    - specs-jsonl
+  tools:
+    - read_file
+    - write_file
+    - edit_file
+    - list_directory
+    - glob
+    - grep
+    - complete_task
+
+# -----------------------------------------------------------------------------
+# PHASE LOOP
+# -----------------------------------------------------------------------------
+# Level 3: Takes a Spec phase, produces code/tests in git worktree
+# Input: Spec markdown, phase description
+# Output: Committed code in feature branch
+# -----------------------------------------------------------------------------
+phase:
+  parent: spec
+  description: "Implement a single phase of a Spec in an isolated git worktree"
+
+  prompt-template: |
+    You are implementing Phase {{phase-number}} of {{total-phases}}: {{phase-name}}
+
+    ## Spec Content
+    {{spec-content}}
+
+    {{#if phase-description}}
+    ## Phase Description
+    {{phase-description}}
+    {{/if}}
+
+    {{#if completed-phases}}
+    ## Completed Phases
+    {{completed-phases}}
+    {{/if}}
+
+    ## Current State
+    Working directory: {{working-directory}}
+
+    {{#if git-status}}
+    Git status:
+    {{git-status}}
+    {{/if}}
+
+    {{#if git-diff}}
+    Git diff (recent changes):
+    {{git-diff}}
+    {{/if}}
+
+    {{#if progress}}
+    ## Previous Iterations
+    {{progress}}
+    {{/if}}
+
+    {{#if previous-errors}}
+    ## Validation Output (failed)
+    {{previous-errors}}
+    {{/if}}
+
+    ## Instructions
+    Implement this phase. Write code, tests, and documentation as needed.
+    Commit your changes with a meaningful message.
+
+    When validation passes (tests pass, lints clean), this phase is complete.
+
+  validation-command: "otto ci"
+  success-exit-code: 0
+  max-iterations: 100
+  iteration-timeout-ms: 300000
+
+  inputs:
+    - spec-content
+    - phase-name
+    - phase-number
+    - total-phases
+    - phase-description
+    - completed-phases
+    - working-directory
+    - git-status
+    - git-diff
+    - previous-errors
+  outputs:
+    - committed-code
+  tools:
+    - read_file
+    - write_file
+    - edit_file
+    - list_directory
+    - glob
+    - grep
+    - run_command
+    - query_loop
+    - share_data
+    - complete_task
+
+# -----------------------------------------------------------------------------
+# RALPH LOOP
+# -----------------------------------------------------------------------------
+# Generic loop for arbitrary tasks (the classic Ralph Wiggum pattern)
+# Input: Task description
+# Output: Varies based on task
+# -----------------------------------------------------------------------------
+ralph:
+  # No parent - standalone loop type
+  description: "Generic loop for arbitrary tasks - the classic Ralph Wiggum pattern"
+
+  prompt-template: |
+    ## Task
+    {{task-description}}
+
+    ## Current State
+    Working directory: {{working-directory}}
+
+    {{#if files-in-scope}}
+    Files in scope:
+    {{files-in-scope}}
+    {{/if}}
+
+    {{#if git-status}}
+    Git status:
+    {{git-status}}
+    {{/if}}
+
+    {{#if progress}}
+    ## Previous Iterations
+    {{progress}}
+    {{/if}}
+
+    {{#if previous-errors}}
+    ## Validation Output (failed)
+    {{previous-errors}}
+    {{/if}}
+
+    ## Instructions
+    Complete the task. Make necessary changes to files.
+    Commit your changes when appropriate.
+
+    When validation passes, the task is complete.
+
+  validation-command: "otto ci"
+  success-exit-code: 0
+  max-iterations: 100
+  iteration-timeout-ms: 300000
+
+  inputs:
+    - task-description
+    - working-directory
+    - files-in-scope
+    - git-status
+    - previous-errors
+  outputs:
+    - task-artifacts
+  tools:
+    - read_file
+    - write_file
+    - edit_file
+    - list_directory
+    - glob
+    - grep
+    - run_command
+    - query_loop
+    - share_data
+    - complete_task

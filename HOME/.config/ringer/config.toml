@@ -1,0 +1,230 @@
+# Sample config for ringer.py.
+# Copy to ~/.config/ringer/config.toml or pass with --config /path/to/config.toml.
+
+# Default identity stamped into state JSON and eval rows. Resolution order:
+# --identity flag > FLEET_IDENTITY / RINGER_IDENTITY env > a .fleet-agent file
+# found walking up from the working directory (per-repo agent name) > this
+# value > short hostname.
+# identity_default = "codex-mini"
+
+# State files live under <state_dir>/runs/<run_id>.json.
+state_dir = "~/.ringer"
+
+# First localhost port tried for the per-run dashboard. The server will scan the
+# next 49 ports if this one is busy.
+dashboard_port_base = 8787
+
+# Optional native HUD app path. Public installs should omit this and let the
+# dashboard open in the browser.
+# hud_app_path = "/Applications/Ringside.app"
+
+# Belt-and-suspenders full-access gate. A task with "full_access": true will
+# still fail unless this is true.
+allow_full_access = false
+
+# Optional model steering. The directory must contain profiles/ with one
+# Markdown profile per model. Ringer creates observations/ringer/ beneath this
+# directory automatically as attempts finish.
+# [steering]
+# dir = "~/.ringer/steering"
+# inject_candidates = true
+
+[eval]
+# Safe public default: write one JSON object per attempt to a local JSONL file.
+# Use "postgres" only when [eval.postgres] is configured.
+backend = "jsonl"
+jsonl_path = "~/.ringer/runs.jsonl"
+
+# Optional Supabase/Postgres logging. The env file should define:
+# SUPABASE_DB_HOST, SUPABASE_DB_PORT, SUPABASE_DB_USER,
+# SUPABASE_DB_PASSWORD, SUPABASE_DB_NAME.
+# [eval.postgres]
+# env_file = "~/.supabase.env"
+
+[engines.codex]
+# Public default resolves this with shutil.which("codex"). Set an absolute path
+# here only for machine-specific installs.
+bin = "codex"
+
+# Placeholders:
+# - {taskdir}: task working directory
+# - {spec}: task prompt/spec
+# - {access_args}: expands to sandbox_args or full_access_args
+# - {model_args}: expands to "-m <model>" only when the manifest task sets
+#   "model" or this engine sets model_default; otherwise it expands to nothing,
+#   preserving Codex's configured default. Setting model_default = "gpt-5.6-sol"
+#   pins the model instead of inheriting ~/.codex/config.toml drift and makes
+#   scoreboard attribution exact.
+# - {engine_args}: expands to the task's optional "engine_args" list — the orchestrator
+#   sets per-task flags here, e.g. ["-c", "model_reasoning_effort=medium"] to match
+#   reasoning depth to task difficulty instead of inheriting the CLI-wide default
+args_template = [
+  "exec",
+  "--skip-git-repo-check",
+  "{access_args}",
+  "{model_args}",
+  "{engine_args}",
+  "-C",
+  "{taskdir}",
+  "{spec}",
+]
+
+# Never rely on an engine's default sandbox. Be explicit.
+sandbox_args = ["--sandbox", "workspace-write"]
+full_access_args = ["--dangerously-bypass-approvals-and-sandbox"]
+
+# First capture group should be the integer token count.
+token_regex = "tokens\\s+used\\s*:?\\s*([0-9][0-9,]*)"
+
+# First capture group should be the model slug self-reported by the harness.
+# Ringer applies this to captured worker output after every attempt. The Codex
+# default reads the `model:` header; override it here only if that format changes.
+model_report_regex = "(?m)^model:[ \\t]*([^ \\t\\r\\n]+)[ \\t]*\\r?$"
+
+# Grok Build CLI (xAI). Install: curl -fsSL https://x.ai/cli/install.sh | bash
+# (or: npm install -g @xai-official/grok), then `grok login` — OAuth on a
+# SuperGrok or X Premium Plus plan. Headless mode (-p) runs a full agentic
+# loop with tools and exits. Grok brings its own OS sandbox (Seatbelt on
+# macOS): profile "workspace" = read everywhere, write CWD + temp + ~/.grok,
+# network allowed. Models: grok-build, grok-composer-2.5-fast (route with the
+# per-task "model" field). Verified against Grok Build v0.2.81 (2026-07-06).
+# Note: --no-auto-update is accepted but absent from --help in v0.2.81 (grok
+# rejects unknown flags, so this is a hidden flag, not a typo) — it stops the
+# CLI self-updating mid-swarm.
+# Uncomment to enable.
+# [engines.grok]
+# bin = "grok"
+# model_default = "grok-composer-2.5-fast"
+# args_template = [
+#   "--cwd",
+#   "{taskdir}",
+#   "{access_args}",
+#   "-m",
+#   "{model}",
+#   "--always-approve",
+#   "--no-auto-update",
+#   "--output-format",
+#   "json",
+#   "{engine_args}",
+#   "-p",
+#   "{spec}",
+# ]
+# sandbox_args = ["--sandbox", "workspace"]
+# full_access_args = ["--sandbox", "off", "--permission-mode", "bypassPermissions"]
+# Grok's JSON output carries no usage/token fields (verified v0.2.81) — plan
+# CLIs report cost as "included in plan"; regex is a harmless no-match. Its JSON
+# also does not self-report a model, so no model_report_regex is configured.
+# token_regex = "\"total_tokens\"\\s*:\\s*([0-9]+)"
+
+# For CI, acceptance evals, and trying Ringer without an API bill.
+# [engines.mock]
+# bin = "python3"
+# args_template = [
+#   "/absolute/path/to/ringer/engines/mock_worker.py",
+#   "{spec}",
+# ]
+# sandbox_args = []
+# full_access_args = []
+
+# OpenCode + OpenRouter — the universal model harness. One engine block runs
+# ANY OpenRouter-served model: the {model} placeholder is filled per task from
+# the manifest's "model" field, falling back to model_default below. Example
+# default: GLM-5.2 (z-ai/glm-5.2, roughly $0.74/M input, $2.33/M output as of
+# 2026-07) — the cheap-intelligence lane.
+# OpenCode has no OS sandbox, so `bin` points at engines/opencode-sandboxed.sh
+# (macOS Seatbelt: network + reads open, writes confined to the task dir, a
+# per-run scratch dir, and OpenCode's state/config dirs). Auth: put your
+# OpenRouter key where your OpenCode version expects it — commonly
+# ~/.local/share/opencode/auth.json ({"openrouter": {"type": "api", "key": "..."}});
+# confirm the path with your installed CLI.
+# Per-task engine_args can set reasoning effort ("--variant", "low|high|max").
+# Uncomment and set an absolute path for `bin` to enable.
+# [engines.opencode]
+# bin = "/absolute/path/to/ringer/engines/opencode-sandboxed.sh"
+# model_default = "openrouter/z-ai/glm-5.2"
+# args_template = [
+#   "{taskdir}",
+#   "{access_args}",
+#   "run",
+#   "-m",
+#   "{model}",
+#   "--dangerously-skip-permissions",
+#   "--format",
+#   "json",
+#   "{engine_args}",
+#   "--dir",
+#   "{taskdir}",
+#   "{spec}",
+# ]
+# sandbox_args = []
+# full_access_args = ["--no-sandbox"]
+# token_regex = '"tokens":\{"total":([0-9]+)'
+
+# OpenCode + OpenRouter, Linux variant. The shipped opencode-sandboxed.sh
+# wrapper is macOS Seatbelt only, so bin points at the opencode binary itself
+# and there is NO OS-level write confinement — isolation comes from Ringer's
+# per-task dir / worktrees mode; keep manifests scoped. Auth lives in
+# ~/.local/share/opencode/auth.json (openrouter api key).
+# Flag note: opencode 1.17.18 has no --dangerously-skip-permissions; --auto is
+# the auto-approve flag. --variant goes through per-task engine_args.
+[engines.opencode]
+bin = "/home/saidler/.opencode/bin/opencode"
+model_default = "openrouter/z-ai/glm-5.2"
+args_template = [
+  "run",
+  "-m",
+  "{model}",
+  "--auto",
+  "--format",
+  "json",
+  "{engine_args}",
+  "--dir",
+  "{taskdir}",
+  "{spec}",
+]
+sandbox_args = []
+full_access_args = []
+token_regex = '"tokens":\{"total":([0-9]+)'
+
+# Claude Code as a worker lane. Ringer runs the worker with cwd = the task dir
+# and stdin closed, so headless `claude -p` writes into the task dir and cannot
+# hang on a prompt. Claude Code has NO OS-level sandbox on Linux (same as
+# OpenCode here), so both access levels bypass permissions; isolation comes from
+# Ringer's per-task dir / worktrees mode. model_default routes to Sonnet 5 (the
+# near-Opus worker); override per task with "model": "claude-opus-4-8" for the
+# hardest work or "claude-haiku-4-5" for cheap mechanical tasks. Under Claude
+# Enterprise this draws on the org seat allocation, not per-token API billing.
+# Verified against Claude Code 2.1.207 (2026-07-11): the JSON result carries the
+# model as the sole key under "modelUsage" and per-model "outputTokens".
+[engines.claude]
+bin = "/home/saidler/.local/bin/claude"
+model_default = "claude-sonnet-5"
+args_template = [
+  "-p",
+  "{access_args}",
+  "--model",
+  "{model}",
+  "{engine_args}",
+  "--output-format",
+  "json",
+  "{spec}",
+]
+sandbox_args = ["--dangerously-skip-permissions"]
+full_access_args = ["--dangerously-skip-permissions"]
+token_regex = '"outputTokens":\s*([0-9]+)'
+model_report_regex = '"modelUsage"\s*:\s*\{\s*"([^"]+)"'
+
+[artifact]
+# Zero-LLM, self-contained HTML artifacts rendered directly from state — no model calls, no
+# network. Three files per config, all pure stdlib templates:
+#   - `out`: the live status page, re-rendered on every ~1s state flush while a run is in
+#     progress (meta-refresh, no JS needed). Ringside can embed or open this.
+#   - `report_out`: the final report, rendered once when a run finishes — full task table,
+#     timings, attempts/retries, check output, links to each task's worker.log/report files.
+#   - `index_out`: a single multi-run index listing every run under state_dir (handy when
+#     several swarms run at once).
+# Templates support {run_id} and {run_name} substitution. Disable with --no-artifact.
+enabled = true
+out = "~/.ringer/artifacts/{run_id}.html"
+report_out = "~/.ringer/artifacts/{run_id}-report.html"
+index_out = "~/.ringer/artifacts/index.html"

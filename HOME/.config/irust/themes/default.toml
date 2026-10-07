@@ -1,0 +1,12 @@
+keyword = "magenta"
+keyword2 = "dark_red"
+function = "blue"
+type = "cyan"
+symbol = "red"
+macro = "dark_yellow"
+literal = "yellow"
+lifetime = "dark_magenta"
+comment = "dark_grey"
+const = "dark_green"
+ident = "white"
+paren_rainbow = true

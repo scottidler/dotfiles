@@ -1,0 +1,108 @@
+# whitespace.yml - Example configuration file
+# This file shows the available configuration options.
+# Copy to ~/.config/whitespace/whitespace.yml to customize.
+
+# File extensions to process (empty = all text files)
+file-extensions: []
+
+# Path patterns to exclude (glob patterns)
+exclude-paths:
+  # Version control
+  - ".git/**"
+  - ".svn/**"
+  - ".hg/**"
+  # Dependencies and virtual environments
+  - "node_modules/**"
+  - ".venv/**"
+  - "venv/**"
+  - ".env/**"
+  - "env/**"
+  - "__pycache__/**"
+  - ".tox/**"
+  - ".pytest_cache/**"
+  # Build outputs
+  - "target/**"
+  - "build/**"
+  - "dist/**"
+  - "out/**"
+  - "bin/**"
+  - "obj/**"
+  # IDE and editor files
+  - ".vscode/**"
+  - ".idea/**"
+  - ".vs/**"
+  - "*.tmp/**"
+  # Package managers
+  - ".npm/**"
+  - ".yarn/**"
+  - ".pnpm-store/**"
+  - "vendor/**"
+
+# Filename patterns to exclude
+exclude-files:
+  - "*.min.js"
+  - "*.min.css"
+  - "*.bundle.*"
+  - "*.lock"
+  - "*.log"
+
+# Binary file extensions to exclude (fast pre-filter)
+exclude-binary-extensions:
+  # Executables and libraries
+  - "*.exe"
+  - "*.dll"
+  - "*.so"
+  - "*.dylib"
+  - "*.a"
+  - "*.lib"
+  - "*.bin"
+  - "*.out"
+  # Archives
+  - "*.zip"
+  - "*.tar"
+  - "*.gz"
+  - "*.bz2"
+  - "*.xz"
+  - "*.7z"
+  - "*.rar"
+  # Images
+  - "*.jpg"
+  - "*.jpeg"
+  - "*.png"
+  - "*.gif"
+  - "*.bmp"
+  - "*.ico"
+  - "*.svg"
+  - "*.webp"
+  # Audio/Video
+  - "*.mp3"
+  - "*.mp4"
+  - "*.avi"
+  - "*.mov"
+  - "*.wav"
+  - "*.flac"
+  # Documents
+  - "*.pdf"
+  - "*.doc"
+  - "*.docx"
+  - "*.xls"
+  - "*.xlsx"
+  - "*.ppt"
+  - "*.pptx"
+  # Other binary formats
+  - "*.sqlite"
+  - "*.db"
+  - "*.dat"
+  - "*.pyc"
+  - "*.class"
+  - "*.jar"
+
+# Binary file detection
+binary-detection:
+  check-null-bytes: true
+  sample-size: 8192
+
+# Processing settings
+processing:
+  max-file-size: 104857600  # 100MB
+  threads: nproc            # Use 'nproc' for CPU count, or specify a number

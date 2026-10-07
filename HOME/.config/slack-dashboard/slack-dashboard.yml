@@ -1,0 +1,121 @@
+slack:
+  token: "${SLACK_DASHBOARD_SLACK_USER_TOKEN}"
+  app-token: "${SLACK_DASHBOARD_SLACK_APP_TOKEN}"
+  # team-id makes row clicks open the native desktop app (slack://) instead of web.
+  team-id: "${SLACK_TEAM_ID}"
+
+fetch:
+  refresh-interval-minutes: 10
+  min-replies: 3
+
+heat:
+  decay-half-life-hours: 24
+  max-thread-age-days: 3
+
+  # Glyph knobs (Triage v3.1). velocity-weight must be materially non-zero so the
+  # spiking glyph and the score agree; unanswered enabled for Monday observation.
+  velocity-weight: 5.0
+  spiking-threshold: 15
+  new-window-minutes: 60
+  unanswered-enabled: true
+  unanswered-max-replies: 2
+  unanswered-min-age-hours: 2
+
+  # Involvement damping (v3.3): a thread I have RECENTLY posted in (👤) is lower priority -
+  # I already weighed in. Strongest right after my post, fades back to none as my message
+  # is buried by later messages AND as time passes (heat *= 1 - involved-damping * msg-fade
+  # * time-fade). involved-damping is the peak cut (0 = off, 0.5 = halve, 1 = zero out).
+  involved-damping: 0.5
+  involved-decay-messages: 10
+  involved-decay-hours: 24.0
+
+  # Channel importance (glob-aware; exact keys beat globs; default 1.0). Weights only
+  # REORDER (zero-miss: nothing is dropped), pushing my orgs to the top of the compact view.
+  # Tiers: T1 = my orgs (SRE, Data Platform, Security-reports-to-me) + incidents/on-call;
+  # T2 = broader engineering (boss Mark, peer Directors Reno/Toussaint, primary customers);
+  # secondary = Data Science (Jena/Tim) adjacent; noise = helpdesk/ops kept visible but low.
+  channel-weights:
+    # T1 - my own orgs + active ops
+    incidents: 3.0
+    sre-sec: 2.8
+    sre*: 2.5
+    ask-security: 2.5
+    data-platform*: 2.6
+    eng-on-call: 2.2
+    platform-internal: 2.0
+    # IT - close partner team, ranks high (sre-it already covered by sre* above)
+    it-helpdesk: 1.6
+    # T2 - broader engineering / peer directors / primary customers
+    engineering-mgmt: 1.4
+    engineering: 1.3
+    tech-spec-reviews: 1.2
+    scrum-of-scrums: 1.0
+    # secondary - data-science / ML adjacent
+    ai-foundry: 0.9
+    ai-technical: 0.9
+    # lower - other teams kept visible (zero-miss) but ranked down
+    backstage: 0.6
+    cloud-costs: 0.5
+    staging-env: 0.5
+    opex-monthly: 0.4
+
+  # Per-person importance, keyed by stable Slack user_id (glob-aware; default = participant-weight).
+  # Raises specific people so a thread they are in floats up; additive into base, bounded by
+  # people-weight-cap. PRIVATE: real ids/weights live only here, never in the public repo.
+  # Unresolved (no Slack user_id observed yet; token lacks search scope): Muller Luo (12,
+  # muller@), Tony O'Dell (10, tony.odell@) - add their ids when known.
+  people-weights:
+    UPU1WE23F: 12   # Bryce York
+    UQ4PZELCE: 10   # Nick Below
+    U07R0G5UVJ8: 10   # Ian McEachern
+    U07MJKG9J9H: 10   # Austin Norris-Zhou
+    U023DJECU72: 8   # Ben Horn
+    U0201PDEELC: 8   # Calvin Morrow
+    U08KL0H3E6B: 8   # Jonathan Hohrath
+    U09CFAHADG9: 8   # Johnny Carr
+    U02KD6JD12N: 8   # Keegan Ferrando
+    U03LCB49Y3C: 8   # Keenan Wells
+    U02B2DNC8M8: 8   # Leslie Rod
+    U09MEPL37JN: 8   # Luke Chu
+    U01DSS69223: 8   # Patrick Shelby
+    U0BAGH9MN05: 8   # Rob Mullins
+    U026Z2U5KK2: 8   # Russell Simco
+    U02G958R3GA: 8   # Stephen Price
+    U097N253M8E: 8   # Zach Fierstadt
+    U09H7T2PAPJ: 5   # Deep Patel
+    U08RGQ8U52B: 5   # Johnny Malizia
+    U08U2J0EVM2: 5   # Mirek Brandt
+  people-weight-cap: 30
+
+channels:
+  ai-foundry: C0ACWPXHLPK
+  ai-technical: C04T9RZANF6
+  ask-security: C2BDSAAQ7
+  backstage: C09PCEA4T8F
+  cloud-costs: C03FPKN86PN
+  data-platform: C0195L0G667
+  data-platform-internal: C023YTN4B1D
+  eng-on-call: C07U7SD5ZDY
+  engineering: C0L0DJU56
+  engineering-mgmt: GMW66K3NC
+  incidents: C01EMTW0XS7
+  it-helpdesk: C02U9V18Q6T
+  opex-monthly: C09RKR0UZ3L
+  platform-internal: C039YLDJW5T
+  scrum-of-scrums: C098GCTV2B0
+  sre: CBC5M4ZQW
+  sre-internal: C01FXF7P3ST
+  sre-it: C0A0P2N7R7D
+  sre-sec: C02SL43UW9J
+  sre-solutions: C05JAH4PEMA
+  staging-env: C01TSJ3F9GV
+  tech-spec-reviews: C0AA8UBU5MX
+
+server:
+  port: 8889
+  log-level: info
+
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  api-key: "${ANTHROPIC_API_KEY}"

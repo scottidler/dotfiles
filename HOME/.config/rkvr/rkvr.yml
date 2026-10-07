@@ -1,0 +1,11 @@
+rmrf:
+  path: /var/tmp/rkvr/rmrf/
+
+  sudo: true
+
+  keep: 21
+
+bkup:
+  path: /var/tmp/rkvr/bkup/
+
+  sudo: true

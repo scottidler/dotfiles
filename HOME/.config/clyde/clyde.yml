@@ -1,0 +1,15 @@
+# clyde config. Every other key keeps its built-in default; see clyde.yml.example in the repo.
+
+# Which repos count as work. Only work sessions are enriched (sent to the LLM for summary/title).
+# `<owner>/*` covers every repo under an owner; `<owner>/<repo>` names one repo by its origin slug.
+# A quoted "!owner/repo" entry excludes, and an exclude always wins.
+reposlugs-ptns:
+  - tatari-tv/*
+  - tatari-dev/*
+  - otto-rs/otto
+  - scottidler/dotfiles
+  - scottidler/claude
+  - scottidler/keep
+  - scottidler/eratosthenes
+  - scottidler/second-brain
+  - scottidler/obsidian
