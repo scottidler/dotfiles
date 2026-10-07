@@ -64,6 +64,7 @@ apt:
   - aria2
   # ASCII art text generator
   - ascii
+  - asciinema
   # advanced interactive system monitor
   - atop
   # arbitrary precision command-line calculator
@@ -122,6 +123,7 @@ apt:
   - hyperfine
   - imagemagick
   - ipcalc
+  - kdenlive
   # SSH/GPG key agent manager that persists across sessions
   - keychain
   # GPU-accelerated terminal emulator
@@ -165,6 +167,7 @@ apt:
   - libtesseract-dev
   - libxml2-dev
   - libxmlsec1-dev
+  - lm-sensors
   # neovim plugin dependency
   - lua5.1
   # neovim plugin dependency
@@ -175,6 +178,8 @@ apt:
   - memtester
   - network-manager-openvpn
   - network-manager-openvpn-gnome
+  - obs-studio
+  - openjdk-21-jre
 # - octarine # vendor .deb, no apt repo
   - openvpn
   - 7zip
@@ -205,11 +210,15 @@ apt:
   - qpwgraph
   # readline wrapper for any REPL or command
   - rlwrap
+  - s-tui
+  - screenkey
+  - signal-desktop
   # network traffic monitor and visualizer
 # - sniffnet # vendor .deb, no apt repo
   # required by ~/bin/speedtest (scottidler/helpful)
   - speedtest-cli
   - sqlite3
+  - steam-launcher
   # Wayland compositor (i3-compatible)
   - sway
   # mesh VPN client
