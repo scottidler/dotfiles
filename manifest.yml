@@ -545,6 +545,192 @@ script:
   printer: |
     sudo lpadmin -p HP_OfficeJet_9010 -E -v ipp://10.10.10.199:631/ipp/print -m everywhere
     sudo lpadmin -d HP_OfficeJet_9010
+  apt-repos: |
+    # Vendor apt repos as deb822 sources; verified on resolute and noble 2026-10-06.
+    sudo install -m 0755 -d /etc/apt/keyrings
+
+    # fetch_key URL DEST: store the key as served (armored .asc or binary .gpg)
+    fetch_key() {
+      curl -fsSL "$1" | sudo tee "$2" >/dev/null
+      sudo chmod 0644 "$2"
+    }
+
+    # fetch_key_dearmor URL DEST: armored key converted to a binary keyring
+    fetch_key_dearmor() {
+      curl -fsSL "$1" | gpg --dearmor | sudo tee "$2" >/dev/null
+      sudo chmod 0644 "$2"
+    }
+
+    # Every source pins Architectures, because steam enables i386 and apt warns
+    # about each repo that has no i386 index.
+
+    # 1password: the package postinst rewrites 1password.sources and this keyring
+    # on every upgrade, so mirror its paths exactly instead of fighting it.
+    fetch_key_dearmor https://downloads.1password.com/linux/keys/1password.asc /usr/share/keyrings/1password-archive-keyring.gpg
+    sudo tee /etc/apt/sources.list.d/1password.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://downloads.1password.com/linux/debian/amd64
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/1password-archive-keyring.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/1password.list
+
+    fetch_key https://acli.atlassian.com/gpg/public-key.asc /etc/apt/keyrings/acli.asc
+    sudo tee /etc/apt/sources.list.d/acli.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://acli.atlassian.com/linux/deb
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/acli.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/acli.list /etc/apt/keyrings/acli-archive-keyring.gpg
+
+    # charm is a Gemfury repo; "* *" is the vendor's documented suite/component.
+    fetch_key https://repo.charm.sh/apt/gpg.key /etc/apt/keyrings/charm.asc
+    sudo tee /etc/apt/sources.list.d/charm.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://repo.charm.sh/apt/
+    Suites: *
+    Components: *
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/charm.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/charm.list /etc/apt/keyrings/charm.gpg
+
+    # claude-desktop: without the opt-out its postinst re-adds claude-desktop.list
+    # on every upgrade, duplicating this source.
+    echo 'CLAUDE_DESKTOP_ADD_REPO="false"' | sudo tee /etc/default/claude-desktop >/dev/null
+    fetch_key https://downloads.claude.ai/claude-desktop/key.asc /etc/apt/keyrings/claude-desktop.asc
+    sudo tee /etc/apt/sources.list.d/claude-desktop.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://downloads.claude.ai/claude-desktop/apt/stable
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/claude-desktop.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/claude-desktop.list
+
+    # cursor: postinst rewrites cursor.sources (Signed-By this keyring) whenever
+    # it exists, so mirror its paths.
+    fetch_key_dearmor https://downloads.cursor.com/keys/anysphere.asc /usr/share/keyrings/anysphere.gpg
+    sudo tee /etc/apt/sources.list.d/cursor.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://downloads.cursor.com/aptrepo
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/anysphere.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/cursor.list
+
+    fetch_key https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli.gpg
+    sudo tee /etc/apt/sources.list.d/github-cli.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://cli.github.com/packages
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/githubcli.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/github-cli.list
+
+    # google-chrome: postinst rewrites google-chrome.sources and this keyring on
+    # every upgrade, so mirror its paths.
+    fetch_key_dearmor https://dl.google.com/linux/linux_signing_key.pub /usr/share/keyrings/google-chrome.gpg
+    sudo tee /etc/apt/sources.list.d/google-chrome.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://dl.google.com/linux/chrome-stable/deb/
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/google-chrome.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+
+    # ngrok publishes Debian suites only; bookworm is the vendor's documented one.
+    fetch_key https://ngrok-agent.s3.amazonaws.com/ngrok.asc /etc/apt/keyrings/ngrok.asc
+    sudo tee /etc/apt/sources.list.d/ngrok.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://ngrok-agent.s3.amazonaws.com
+    Suites: bookworm
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/ngrok.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/ngrok.list /etc/apt/trusted.gpg.d/ngrok.asc
+
+    fetch_key https://repo.nordvpn.com/gpg/nordvpn_public.asc /etc/apt/keyrings/nordvpn.asc
+    sudo tee /etc/apt/sources.list.d/nordvpn.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://repo.nordvpn.com/deb/nordvpn/debian
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/nordvpn.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/nordvpn.list /etc/apt/sources.list.d/nordvpn-app.list /etc/apt/trusted.gpg.d/nordvpn_public.asc
+
+    # signal publishes a single "xenial" suite for every distro.
+    fetch_key https://updates.signal.org/desktop/apt/keys.asc /etc/apt/keyrings/signal-desktop.asc
+    sudo tee /etc/apt/sources.list.d/signal-desktop.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://updates.signal.org/desktop/apt
+    Suites: xenial
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/signal-desktop.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/signal-desktop.list /etc/apt/sources.list.d/signal-xenial.list
+
+    # spotify: postinst only scans *.list files and writes spotify.list unless that
+    # path already exists; an empty spotify.list is Spotify's documented opt-out.
+    fetch_key https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.asc /etc/apt/keyrings/spotify.asc
+    sudo tee /etc/apt/sources.list.d/spotify.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://repository.spotify.com
+    Suites: stable
+    Components: non-free
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/spotify.asc
+    EOF
+    sudo truncate -s 0 /etc/apt/sources.list.d/spotify.list
+
+    sudo dpkg --add-architecture i386
+    fetch_key https://repo.steampowered.com/steam/archive/stable/steam.gpg /etc/apt/keyrings/steam.gpg
+    sudo tee /etc/apt/sources.list.d/steam.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://repo.steampowered.com/steam/
+    Suites: stable
+    Components: steam
+    Architectures: amd64 i386
+    Signed-By: /etc/apt/keyrings/steam.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/steam.list /etc/apt/sources.list.d/steam-stable.list
+
+    # tailscale publishes per-release suites (noble, resolute, ...); unquoted
+    # heredoc so the host's codename is substituted.
+    codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+    fetch_key "https://pkgs.tailscale.com/stable/ubuntu/${codename}.noarmor.gpg" /etc/apt/keyrings/tailscale.gpg
+    sudo tee /etc/apt/sources.list.d/tailscale.sources >/dev/null <<EOF
+    Types: deb
+    URIs: https://pkgs.tailscale.com/stable/ubuntu
+    Suites: ${codename}
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/tailscale.gpg
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/tailscale.list
+
+    # slack is managed elsewhere; only drop its legacy .list once a .sources exists.
+    if [ -f /etc/apt/sources.list.d/slack.sources ]; then
+      sudo rm -f /etc/apt/sources.list.d/slack.list
+    fi
+
+    sudo apt-get update
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
