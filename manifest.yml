@@ -744,6 +744,9 @@ script:
       sudo mv "/opt/zig-x86_64-linux-$v" "/opt/zig-$v"
     fi
     sudo ln -sf "/opt/zig-$v/zig" /usr/local/bin/zig
+  gnome-dconf: |
+    # Keybindings, workspaces, dock and extension settings; extensions themselves are per-user installs.
+    dconf load / < "$HOME/repos/scottidler/dotfiles/gnome/gnome.ini"
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
