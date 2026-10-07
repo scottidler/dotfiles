@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""
+entropy-check: Evaluate files for high-entropy content (likely secrets/tokens).
+
+Reports entropy metrics WITHOUT displaying file contents.
+Designed for AI assistants to detect secrets without leaking them into chat.
+
+Usage:
+  entropy-check <file>...
+  entropy-check --dir <directory>
+  entropy-check --threshold 4.0 <file>...
+
+Exit codes:
+  0 = no high-entropy content detected
+  1 = high-entropy content detected (likely secret)
+  2 = error
+"""
+
+import argparse
+import math
+import os
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+def shannon_entropy(data: bytes) -> float:
+    """Calculate Shannon entropy of byte data (bits per byte, 0-8 scale)."""
+    if not data:
+        return 0.0
+    counts = Counter(data)
+    length = len(data)
+    return -sum(
+        (count / length) * math.log2(count / length)
+        for count in counts.values()
+    )
+
+
+def char_class_ratio(text: str) -> dict:
+    """Analyze character class distribution without revealing content."""
+    if not text:
+        return {"length": 0}
+    upper = sum(1 for c in text if c.isupper())
+    lower = sum(1 for c in text if c.islower())
+    digit = sum(1 for c in text if c.isdigit())
+    special = sum(1 for c in text if not c.isalnum() and not c.isspace())
+    space = sum(1 for c in text if c.isspace())
+    length = len(text)
+    return {
+        "length": length,
+        "upper_pct": round(upper / length * 100, 1),
+        "lower_pct": round(lower / length * 100, 1),
+        "digit_pct": round(digit / length * 100, 1),
+        "special_pct": round(special / length * 100, 1),
+        "space_pct": round(space / length * 100, 1),
+        "unique_chars": len(set(text)),
+    }
+
+
+def classify(entropy: float, length: int) -> str:
+    """Classify the likelihood that content is a secret."""
+    if length < 8:
+        return "too-short"
+    if entropy >= 5.0:
+        return "HIGH-ENTROPY (very likely secret/token)"
+    if entropy >= 4.0:
+        return "MEDIUM-ENTROPY (possibly secret)"
+    if entropy >= 3.0:
+        return "LOW-ENTROPY (likely not a raw secret)"
+    return "VERY-LOW-ENTROPY (not a secret)"
+
+
+def looks_like_secret_filename(name: str) -> bool:
+    """Heuristic: does the filename suggest it's a secret?"""
+    indicators = [
+        "key", "token", "secret", "password", "passwd", "credential",
+        "api-key", "api_key", "apikey", "pat", "auth",
+    ]
+    lower = name.lower()
+    return any(ind in lower for ind in indicators)
+
+
+def analyze_file(path: Path, verbose: bool = False) -> dict:
+    """Analyze a single file for entropy characteristics."""
+    result = {
+        "path": str(path),
+        "filename": path.name,
+        "exists": path.exists(),
+    }
+
+    if not path.exists():
+        result["error"] = "file not found"
+        return result
+
+    if not path.is_file():
+        result["error"] = "not a regular file"
+        return result
+
+    try:
+        data = path.read_bytes()
+    except PermissionError:
+        result["error"] = "permission denied"
+        return result
+
+    # Skip encrypted .age files - they'll always be high entropy
+    if path.suffix == ".age":
+        result["classification"] = "ENCRYPTED (.age file - skip)"
+        result["size"] = len(data)
+        return result
+
+    # Strip trailing whitespace/newlines for analysis
+    stripped = data.rstrip()
+
+    result["size"] = len(data)
+    result["content_length"] = len(stripped)
+    result["entropy"] = round(shannon_entropy(stripped), 3)
+    result["line_count"] = data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+    result["is_binary"] = not all(
+        b == 0x09 or b == 0x0A or b == 0x0D or 0x20 <= b <= 0x7E
+        for b in stripped
+    ) if stripped else False
+
+    try:
+        text = stripped.decode("utf-8")
+        result["char_classes"] = char_class_ratio(text)
+    except UnicodeDecodeError:
+        result["is_binary"] = True
+
+    result["filename_looks_like_secret"] = looks_like_secret_filename(path.name)
+    result["classification"] = classify(result["entropy"], len(stripped))
+
+    return result
+
+
+def print_result(result: dict, verbose: bool = False):
+    """Print analysis result in a safe, content-free format."""
+    path = result["path"]
+    filename = result.get("filename", "")
+
+    if "error" in result:
+        print(f"  {path}: ERROR - {result['error']}")
+        return
+
+    classification = result.get("classification", "unknown")
+
+    # Color coding for terminal
+    if "HIGH" in classification:
+        color = "\033[91m"  # red
+    elif "MEDIUM" in classification:
+        color = "\033[93m"  # yellow
+    elif "ENCRYPTED" in classification:
+        color = "\033[90m"  # gray
+    else:
+        color = "\033[92m"  # green
+    reset = "\033[0m"
+
+    entropy = result.get("entropy", 0)
+    size = result.get("size", 0)
+    lines = result.get("line_count", 0)
+
+    print(f"  {color}{path}{reset}")
+    print(f"    classification: {color}{classification}{reset}")
+
+    if "entropy" in result:
+        print(f"    entropy: {entropy:.3f} bits/byte | size: {size}B | lines: {lines}")
+
+    if result.get("filename_looks_like_secret"):
+        print(f"    filename-hint: name suggests secret/token")
+
+    if verbose and "char_classes" in result:
+        cc = result["char_classes"]
+        print(f"    char-mix: {cc['unique_chars']} unique | "
+              f"upper:{cc['upper_pct']}% lower:{cc['lower_pct']}% "
+              f"digit:{cc['digit_pct']}% special:{cc['special_pct']}%")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Evaluate file entropy to detect secrets without displaying content"
+    )
+    parser.add_argument("files", nargs="*", help="Files to analyze")
+    parser.add_argument("--dir", "-d", help="Recursively scan a directory")
+    parser.add_argument("--threshold", "-t", type=float, default=4.0,
+                        help="Entropy threshold for 'likely secret' (default: 4.0)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Show character class breakdown")
+    parser.add_argument("--quiet", "-q", action="store_true",
+                        help="Only show files above threshold")
+    parser.add_argument("--json", "-j", action="store_true",
+                        help="Output as JSON")
+    args = parser.parse_args()
+
+    files = []
+    if args.dir:
+        dirpath = Path(args.dir).expanduser()
+        for root, dirs, filenames in os.walk(dirpath):
+            # Skip hidden dirs except .secrets
+            dirs[:] = [d for d in dirs if not d.startswith(".") or d == ".secrets"]
+            for f in filenames:
+                files.append(Path(root) / f)
+    files.extend(Path(f).expanduser() for f in args.files)
+
+    if not files:
+        parser.print_help()
+        sys.exit(2)
+
+    results = [analyze_file(f, args.verbose) for f in sorted(files)]
+
+    if args.json:
+        import json
+        print(json.dumps(results, indent=2))
+        sys.exit(0)
+
+    has_high = False
+    for r in results:
+        entropy = r.get("entropy", 0)
+        if args.quiet and entropy < args.threshold:
+            continue
+        print_result(r, args.verbose)
+        if entropy >= args.threshold:
+            has_high = True
+
+    # Summary
+    total = len(results)
+    high = sum(1 for r in results if r.get("entropy", 0) >= 5.0)
+    medium = sum(1 for r in results if 4.0 <= r.get("entropy", 0) < 5.0)
+    encrypted = sum(1 for r in results if "ENCRYPTED" in r.get("classification", ""))
+
+    print(f"\n  summary: {total} files | {high} high-entropy | {medium} medium-entropy | {encrypted} encrypted")
+
+    sys.exit(1 if has_high else 0)
+
+
+if __name__ == "__main__":
+    main()

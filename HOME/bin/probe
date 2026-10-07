@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# connprobe - continuously prove connectivity to a domain
+# Usage: connprobe [domain] [interval_seconds]
+
+set -euo pipefail
+
+DOMAIN="${1:-google.com}"
+INTERVAL="${2:-5}"
+PING_TIMEOUT=2
+DNS_TIMEOUT=3
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+RESET='\033[0m'
+
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+
+log_ok()   { printf "${GREEN}[%s] OK${RESET}   %s\n" "$(ts)" "$1"; }
+log_fail() { printf "${RED}[%s] FAIL${RESET} %s\n" "$(ts)" "$1"; }
+
+check_ping() {
+    ping -c1 -W"$PING_TIMEOUT" "$DOMAIN" >/dev/null 2>&1
+}
+
+resolve_ip() {
+    if command -v dig &>/dev/null; then
+        dig +short +time="$DNS_TIMEOUT" +tries=1 "$DOMAIN" 2>/dev/null | head -1
+    elif command -v host &>/dev/null; then
+        host -W "$DNS_TIMEOUT" "$DOMAIN" 2>/dev/null | awk '/has address/{print $NF; exit}'
+    fi
+}
+
+echo "Probing ${DOMAIN} every ${INTERVAL}s (ping timeout=${PING_TIMEOUT}s, dns timeout=${DNS_TIMEOUT}s)"
+echo "Press Ctrl-C to stop"
+echo ""
+
+while true; do
+    if check_ping; then
+        log_ok "ping ${DOMAIN}"
+    else
+        # ping failed - try DNS to distinguish network down vs host down
+        ip=$(resolve_ip) || true
+        if [[ -n "$ip" ]]; then
+            log_fail "no ping, DNS resolves ${DOMAIN} -> ${ip}"
+        else
+            log_fail "no ping, no DNS for ${DOMAIN}"
+        fi
+    fi
+    sleep "$INTERVAL"
+done

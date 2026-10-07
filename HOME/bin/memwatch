@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Logs memory/swap pressure every run; desktop-notifies + logs top RSS offenders
+# when free memory or swap usage crosses a danger threshold. Run via cron.
+set -euo pipefail
+
+LOG=~/.cache/memwatch.log
+AVAIL_FLOOR_KB=$((8 * 1024 * 1024))   # alert if available < 8GB
+SWAP_CEIL_KB=$((2 * 1024 * 1024))     # alert if swap used > 2GB
+MAX_LOG_BYTES=$((5 * 1024 * 1024))    # self-trim so this can never grow unbounded
+
+if [[ -f "$LOG" && $(stat -c%s "$LOG") -gt "$MAX_LOG_BYTES" ]]; then
+  tail -n 5000 "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"
+fi
+
+read -r _ total used free shared cache avail <<<"$(free -k | awk '/^Mem:/{print $1,$2,$3,$4,$5,$6,$7}')"
+read -r _ swaptotal swapused swapfree <<<"$(free -k | awk '/^Swap:/{print $1,$2,$3,$4}')"
+
+ts=$(date '+%Y-%m-%d %H:%M:%S')
+top5=$(ps -eo rss,comm --sort=-rss --no-headers | head -5 | awk '{printf "%s:%dMB ", $2, $1/1024}')
+
+echo "$ts avail=${avail}KB swapused=${swapused}KB top5: $top5" >> "$LOG"
+
+if [[ "$avail" -lt "$AVAIL_FLOOR_KB" || "$swapused" -gt "$SWAP_CEIL_KB" ]]; then
+  msg="Low memory: ${avail}KB avail, ${swapused}KB swap used. Top: ${top5}"
+  echo "$ts ALERT $msg" >> "$LOG"
+  DISPLAY=:1 notify-send -u critical "memwatch: low memory" "$msg" 2>/dev/null || true
+fi

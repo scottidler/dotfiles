@@ -1,0 +1,27 @@
+# Keep home-directory ripgrep scans bounded. Claude Code's file suggestions
+# fall back to `rg --files --follow --hidden` when launched from $HOME.
+
+.cache/
+.cargo/
+.local/
+.npm/
+.rustup/
+.bun/
+.cursor-server/
+.gemini/
+.mozilla/
+.nvm/
+.otto/
+.otto.bak/
+go/
+node_modules/
+nuclei-templates/
+repos/
+slam/
+snap/
+Desktop/
+Documents/
+Downloads/
+Pictures/
+Videos/
+Claude/
