@@ -519,6 +519,32 @@ script:
     # Unit and timer come in via link:; the timer was enabled by hand before.
     systemctl --user daemon-reload
     systemctl --user enable --now swap-watch.timer
+  crontab: |
+    # Replaces the whole user crontab. relocate-targets assumes intel-480gb-ssd.
+    {
+      primary-host && echo '0 2 * * * /home/saidler/bin/relocate-targets >> /home/saidler/.cache/relocate-targets.log 2>&1'
+      echo '*/5 * * * * /home/saidler/bin/memwatch'
+      echo '0 1 * * * /home/saidler/.cargo/bin/Kondo # Kondo-auto'
+    } | crontab -
+  udev-uinput: |
+    # ydotool (Handy voice typing) and Vibe Typer write to /dev/uinput.
+    sudo tee /etc/udev/rules.d/70-uinput.rules >/dev/null <<'EOF'
+    KERNEL=="uinput", GROUP="input", MODE="0660", TAG+="uaccess"
+    EOF
+    sudo tee /etc/udev/rules.d/99-vibetyper-uinput.rules >/dev/null <<'EOF'
+    KERNEL=="uinput", MODE="0666", OPTIONS+="static_node=uinput"
+    KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"
+    EOF
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+  user-groups: |
+    # docker, nordvpn and vboxusers exist only after their packages install.
+    for g in input kvm docker nordvpn vboxusers; do
+      getent group "$g" >/dev/null && sudo usermod -aG "$g" "$USER"
+    done
+  printer: |
+    sudo lpadmin -p HP_OfficeJet_9010 -E -v ipp://10.10.10.199:631/ipp/print -m everywhere
+    sudo lpadmin -d HP_OfficeJet_9010
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
