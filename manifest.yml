@@ -42,7 +42,6 @@ pkg:
   - rsync
   - xclip
   - dconf-cli
-  - python3-pip
 # - anki # no apt candidate on 26.04
   - flatpak
   - gnome-software-plugin-flatpak
@@ -192,7 +191,6 @@ apt:
   - pinentry-gnome3
   - pinentry-tty
   # install Python CLI tools in isolated environments
-  - pipx
   # helper tool for finding compiler/linker flags
   - pkg-config
   # fast drop-in linker; replaces ld for Rust/C++ builds (see ~/.cargo/config.toml)
@@ -267,14 +265,15 @@ uv-tool:
   - cruft
   - docling
   - git-big-picture
+  - git-filter-repo
   - git+https://github.com/jemmanuele/gslide-mcp.git
   - ipython
   - "markitdown[all]"
   - mypy
   - ocrmypdf
   - git+https://github.com/openai/whisper.git
-  - pip-tools
   - poetry
+  - prek
   - pytest
   - yamllint
   - yt-dlp
