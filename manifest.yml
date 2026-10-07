@@ -758,6 +758,42 @@ script:
     if systemctl cat falcon-sensor.service >/dev/null 2>&1; then
       sudo systemctl mask falcon-sensor.service
     fi
+  apparmor-claude: |
+    # Same userns grant as bwrap-userns, for Claude Code's native binary and Claude Desktop.
+    sudo tee /etc/apparmor.d/claude-code >/dev/null <<EOF
+    abi <abi/4.0>,
+    include <tunables/global>
+
+    profile claude-code $HOME/.local/share/claude/versions/* flags=(unconfined) {
+      userns,
+      include if exists <local/claude-code>
+    }
+    EOF
+    sudo tee /etc/apparmor.d/claude-desktop >/dev/null <<'EOF'
+    abi <abi/4.0>,
+    include <tunables/global>
+
+    profile claude-desktop /usr/lib/claude-desktop/claude-desktop flags=(unconfined) {
+      userns,
+      include if exists <local/claude-desktop>
+    }
+    EOF
+    sudo apparmor_parser -r /etc/apparmor.d/claude-code /etc/apparmor.d/claude-desktop
+  eratosthenes-logrotate: |
+    sudo tee /etc/logrotate.d/eratosthenes >/dev/null <<EOF
+    $HOME/.local/share/eratosthenes/logs/*.log {
+        su $USER $USER
+        daily
+        rotate 7
+        maxsize 100M
+        missingok
+        notifempty
+        compress
+        copytruncate
+    }
+    EOF
+  papersize: |
+    echo a4 | sudo tee /etc/papersize >/dev/null
   # --- Tool-owned user units -------------------------------------------------
   # A unit written by a tool's installer is owned by that tool; dotfiles never
   # symlinks it (installers rewrite their unit and would clobber or untrack a
