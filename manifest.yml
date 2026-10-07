@@ -43,7 +43,7 @@ pkg:
   - xclip
   - dconf-cli
   - python3-pip
-  - anki
+# - anki # no apt candidate on 26.04
   - flatpak
   - gnome-software-plugin-flatpak
   - apt-transport-https
@@ -103,13 +103,11 @@ apt:
   - gimp
   - git
   # git branch management GUI
-  - git-butler
+# - git-butler # vendor .deb, no apt repo
   # syntax-highlighting pager for git diffs
   - git-delta
-  - gnome-shell-extension-appindicator
-  - gnome-shell-extension-desktop-icons-ng
+  - gnome-shell-ubuntu-extensions
   - gnome-shell-extension-manager
-  - gnome-shell-extension-ubuntu-tiling-assistant
   - gnupg
   - gnupg2
   - golang
@@ -172,9 +170,9 @@ apt:
   - memtester
   - network-manager-openvpn
   - network-manager-openvpn-gnome
-  - octarine
+# - octarine # vendor .deb, no apt repo
   - openvpn
-  - p7zip-full
+  - 7zip
   # universal document converter (markdown, docx, pdf, rst, etc.)
   - pandoc
   # GNU parallel job runner
@@ -196,14 +194,14 @@ apt:
   - protobuf-compiler
   - python3-cairo-dev
   - python3-dev
-  - python3.12-venv
+  - python3-venv
   - qbittorrent
   # PipeWire graph/patchbay GUI
   - qpwgraph
   # readline wrapper for any REPL or command
   - rlwrap
   # network traffic monitor and visualizer
-  - sniffnet
+# - sniffnet # vendor .deb, no apt repo
   # required by ~/bin/speedtest (scottidler/helpful)
   - speedtest-cli
   - sqlite3
@@ -233,7 +231,7 @@ apt:
   - yq
   - zip
   - zlib1g-dev
-  - zoom
+# - zoom # vendor .deb, no apt repo
 
 dnf:
   items:
