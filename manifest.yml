@@ -1055,12 +1055,8 @@ script:
     tar -xzf git-tools-v.*-linux.tar.gz -C ~/bin/
     rm git-tools-v.*-linux.tar.gz
   github-cli: |
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-      && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-      && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-      && sudo apt update \
-      && sudo apt install gh -y
+    # The repo comes from apt-repos (github-cli.sources).
+    sudo apt-get install -y gh
   gnome-no-idle-dim: |
     # power-saver forces idle dim regardless of the idle-dim toggle; balanced does not.
     gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
