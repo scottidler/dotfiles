@@ -220,6 +220,7 @@ aliases:
   mini: ssh saidler@mini.lan
   mina: ssh -t saidler@mini.lan /Users/saidler/.local/bin/hermes
   mina-c: ssh -t saidler@mini.lan /Users/saidler/.local/bin/hermes -c
+  ripr: ssh ripr.lan
   xps: ssh saidler@xps.lan
 
   # ========================================
