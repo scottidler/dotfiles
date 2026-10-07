@@ -178,6 +178,7 @@ apt:
   - memtester
   - network-manager-openvpn
   - network-manager-openvpn-gnome
+  - ngrok
   - obs-studio
   - openjdk-21-jre
 # - octarine # vendor .deb, no apt repo
