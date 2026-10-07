@@ -64,6 +64,7 @@ apt:
   # ASCII art text generator
   - ascii
   - asciinema
+  - at
   # advanced interactive system monitor
   - atop
   # arbitrary precision command-line calculator
@@ -220,6 +221,7 @@ apt:
 # - sniffnet # vendor .deb, no apt repo
   # required by ~/bin/speedtest (scottidler/helpful)
   - speedtest-cli
+  - spotify-client
   - sqlite3
   - steam-launcher
   # Wayland compositor (i3-compatible)
