@@ -61,3 +61,54 @@ Real script: `25 passed, 0 failed`.
 ### Open questions
 - UNVERIFIED pending operator: `systemctl show user@1000.service -p TimeoutStopUSec` = `3min 30s` on desk and ripr (needs manifest apply with sudo, then daemon-reload; note a running user@ may need a re-login/reboot to show new value if read from the live unit).
 - UNVERIFIED pending operator: desk `cortex.log` `inference progress` sub-batches <= 16 after `systemctl --user restart cortex.service`.
+
+## Phase 2: Stop handle and listener task
+Repo: second-brain. Baseline chore `c7462f8`, Phase 2 `139b894`.
+
+### Baseline fix (before Phase 2)
+- `otto ci` was red on second-brain main (939470e) under rustc/clippy 1.99.0, and already red at the 14:38 otto run on the previous commit. There were 3 `clippy::double_must_use` errors in distillers and 3 `semicolon_in_expressions_from_macros` errors in oracle, plus 41 warnings from that same lint.
+- Both came from macros in dependencies, so the fix is a precise lockfile bump in its own commit `c7462f8 chore(lint): fix clippy errors under rustc 1.99`. No code edits, no `#[allow]`, no toolchain pin.
+  - async-trait 0.1.89 -> 0.1.92. 0.1.89's `expand.rs:69` pushes `#[must_use]` onto every async trait method, whose expansion already returns a must_use type. 0.1.91 still does; 0.1.92 does not. It pulls in syn 3.0.6 as a proc-macro build dep.
+  - eyre 0.6.12 -> 0.6.14. 0.6.12's `bail!` expands to `return Err(..);` with a trailing semicolon; 0.6.14 drops it.
+- Afterwards both lints are at 0 and otto ci is green (3080 passed).
+
+### Design decisions
+- `StopHandle` (`cortex/src/shutdown.rs`) is `Arc<StopState { stopped: AtomicBool, notify: Notify }>`, derives `Clone`. `is_stopped` is one Acquire load. `stopped()` enables its `Notified` before it reads the flag, so a stop that lands between the read and the await still wakes it. The stop path is store(Release), then `notify_waiters`, and the flag never clears. That makes `stopped()` cancel-safe in a looping `select!`.
+- `StopHandle::listen()` is the constructor that spawns the listener task: it builds `Shutdown::listen()`, moves it into `tokio::spawn`, awaits `recv()`, logs `stop signal received; stopping at the next check point`, and sets the flag. The name mirrors `Shutdown::listen()`: both install the signal listeners and need a runtime. `StopHandle::never()` is `Default`, a handle with no task.
+- `cortex/src/daemon.rs:start_watching`: the handle is the first statement, before `validate_canonical_assets`, the model load and the startup sweep. The post-sweep `Shutdown::listen()` is removed, and the `biased;` stop arm awaits `stop.stopped()`, still logging `received shutdown signal; shutting down daemon` (Acceptance 1 greps this).
+- `Shutdown` stays `pub` and unchanged. The existing harness cases still drive it directly, and they stay as they were.
+- Harness (`cortex/tests/shutdown.rs`): new `--work-child` mode, with the daemon loop shape around a `StopHandle` and a tick arm that runs 30s of `block_in_place` work polling `is_stopped()` every 100ms. The spawn/signal/wait code is factored into `signal_child_during_work(name, signal, mode, deadline, lost)` and shared with the existing case, whose deadline is unchanged.
+- Unit tests in `cortex/src/shutdown/tests.rs` (sibling file, per `source-lint`): `never` is not stopped, `never().stopped()` does not resolve in 50ms, a stop is seen by clones, and a stop wakes a waiter registered before it.
+- `cortex/AGENTS.md` module map line for `shutdown.rs` names `StopHandle`.
+
+### Evidence
+- `otto ci` green on 139b894 (3084 passed, 0 failed). The harness output inside it:
+```
+shutdown harness: SIGTERM ok
+shutdown harness: SIGINT ok
+shutdown harness: SIGTERM during 30s work ok (exited 120.377895ms after the signal)
+shutdown harness: SIGINT during 30s work ok (exited 120.387178ms after the signal)
+```
+- Mutation: in `StopHandle::listen` the listener task's `setter.stop()` was replaced with `if std::hint::black_box(false) { setter.stop(); }`, so the flag is never set (written that way so `stop()` stays used under `deny(dead_code)`). `cargo test --features vault/vec --test shutdown` in `cortex/`:
+```
+shutdown harness: SIGTERM ok
+shutdown harness: SIGINT ok
+
+thread 'main' (1703477) panicked at cortex/tests/shutdown.rs:171:9:
+SIGTERM (--work-child): loop still running 2s after the signal: the work never saw the stop flag
+error: test failed, to rerun pass `--test shutdown`
+```
+  The file was then restored from a saved copy (0 `MUTATION` markers), and `pgrep` found no stray `--work-child` processes (the `Cleanup` guard kills the child).
+- Success criteria: new case `ok` under SIGTERM and SIGINT, exit 0 within 2s of the signal, PASS (~120ms). The case fails with the listener broken, PASS.
+
+### Deviations
+- The doc gives no constructor name for the spawned listener; it is `StopHandle::listen()` (above). Same effect.
+- The baseline lint fix landed as a separate chore commit before Phase 2 (the coordinator's instruction), outside the doc's phase list.
+- The handle is created before `validate_canonical_assets` too, not just before the sweep. That is the doc's "first thing in the daemon run" taken literally, and a failed validation returns an error either way.
+
+### Tradeoffs
+- `notify_waiters` plus a sticky flag, vs `notify_one`'s stored permit: there can be several waiters across clones, and the flag makes a late `stopped()` return at once. `notify_one` would wake only one waiter.
+- Lockfile bumps vs editing the 44 `bail!` call sites and allowing `double_must_use`: both defects are upstream macro output, already fixed upstream, so call-site edits would only work around them.
+
+### Open questions
+- None.
