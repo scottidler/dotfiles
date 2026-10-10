@@ -464,6 +464,7 @@ github:
     link:
       bin/terraform: ~/bin/terraform
       bin/tfenv: ~/bin/tfenv
+  KittenML/KittenTTS: {}
 
 script:
   beads: |
