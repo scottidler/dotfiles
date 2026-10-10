@@ -26,3 +26,38 @@
 
 ### Open questions
 - None.
+
+## Phase 1: dotfiles alerter changes
+### Design decisions
+- `is-system-running` probe sits after the flock and before the stamp read, `timeout 5`, only `stopping` suppresses — `HOME/.local/bin/notify-failure` — suppression returns before any stamp write, so dedup state survives; empty/other values fall through and alert (fail open).
+- Test stub `systemctl` is driven by a per-case `sysmode` file (running | stopping | error | hang), created in `newcase` so every existing case sees `running` — `bin/notify-failure-test.sh`.
+- snapd drop-in carries both `RestartMode=direct` and `[Unit] StartLimitIntervalSec=60`, as Spike A proved — `HOME/.config/systemd/user/snap.snapd-desktop-integration.snapd-desktop-integration.service.d/10-restart-direct.conf`.
+- `cortex.yml` `embed.max-chunks-per-call: 16` placed under `embed:` beside `max-chunks-per-tick`.
+- Manifest script entry named `user-manager-stop-timeout`, inserted before `passwordless-sudo` — `manifest.yml`; follows the oomd precedent (`sudo mkdir -p`, `sudo tee`, `sudo systemctl daemon-reload`).
+
+### Mutation proof (stopping case bites)
+Copy of `notify-failure` with the `system_state` block removed, run as `NOTIFY_FAILURE=<copy> bash bin/notify-failure-test.sh`:
+```
+PASS: stopping: exit 0
+FAIL: stopping: no further POST (want '1', got '2')
+FAIL: stopping: stamp unchanged (want '1000 0', got '9000 0')
+FAIL: stopping: journal line (want '1', got '0')
+22 passed, 3 failed
+```
+Real script: `25 passed, 0 failed`.
+
+### Live deploy on ripr (no sudo)
+- Linked the drop-in into `~/.config/systemd/user/snap.snapd-desktop-integration.snapd-desktop-integration.service.d/` as a file symlink into the repo (the parent `~/.config/systemd/user` is a real directory with per-file links, so the recursive link would do the same), then `systemctl --user daemon-reload`.
+- `systemctl --user show snap.snapd-desktop-integration.snapd-desktop-integration.service -p RestartMode -p StartLimitIntervalUSec` -> `RestartMode=direct`, `StartLimitIntervalUSec=1min`.
+- NOT done (operator): manifest apply, `sudo` user@ drop-in, cortex restart.
+
+### Deviations
+- Existing test cases needed no change; `stopping` case first sends one alert (stamp `1000 0`) so "stamp unchanged" and "no further POST" are meaningful rather than trivially empty — same intent as the spec.
+- Manifest script entry also does `sudo mkdir -p` of the drop-in dir (the doc only lists tee and daemon-reload); the dir exists on both hosts via oomd, but the entry should not depend on that.
+
+### Tradeoffs
+- Header comment in `notify-failure` documents the new skip in the Env block vs a separate section — kept short, the inline comment carries the why.
+
+### Open questions
+- UNVERIFIED pending operator: `systemctl show user@1000.service -p TimeoutStopUSec` = `3min 30s` on desk and ripr (needs manifest apply with sudo, then daemon-reload; note a running user@ may need a re-login/reboot to show new value if read from the live unit).
+- UNVERIFIED pending operator: desk `cortex.log` `inference progress` sub-batches <= 16 after `systemctl --user restart cortex.service`.

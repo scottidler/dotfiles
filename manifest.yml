@@ -959,6 +959,24 @@ script:
     # Setting up the device does not activate it as swap before a reboot (ripr, 2026-10-06).
     sudo systemctl start dev-zram0.swap
     echo "swap-tuning installed: $(swapon --show | tr '\n' ' ')"
+  user-manager-stop-timeout: |
+    # Give the user manager 210s to stop at reboot/power off. Ubuntu's
+    # /usr/lib/systemd/system/user@.service.d/timeout.conf sets
+    # TimeoutStopSec=5, and any user service still running 5s into the stop
+    # (cortex mid-tick) is SIGKILLed whatever its own TimeoutStopSec says.
+    # 210 = cortex's 180 (daemon.stop-timeout-secs) + 30 for the manager's own
+    # stop. A ceiling, not a wait: an idle cortex adds nothing.
+    # Drop-ins apply in filename order across directories, and `systemctl show
+    # user@1000 -p DropInPaths` lists 10-login-barrier, 10-oomd-user-service-
+    # defaults, 20-oomd-pressure-limit, then vendor timeout.conf LAST. So the
+    # name must sort after "timeout.conf": zz-*, not 50-*, which would leave 5s.
+    # Design: docs/design/2026-10-10-stop-time-failure-alerts.md
+    sudo mkdir -p /etc/systemd/system/user@.service.d
+    sudo tee /etc/systemd/system/user@.service.d/zz-cortex-stop.conf <<'EOF'
+    [Service]
+    TimeoutStopSec=210
+    EOF
+    sudo systemctl daemon-reload
   passwordless-sudo: |
     # Grant the current user passwordless sudo via a /etc/sudoers.d/ drop-in
     # instead of editing /etc/sudoers directly. The content is syntax-checked

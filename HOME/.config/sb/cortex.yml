@@ -211,6 +211,12 @@ embed:
   # start and finish. Bounding chunks makes each tick's wall-clock predictable
   # and spreads the same work across ticks instead of one unbounded run.
   max-chunks-per-tick: 512
+  # Chunks per single candle call, the one stretch a stop cannot interrupt.
+  # Time is linear in chunks: desk's worst measured sub-batch was 3.90 s/chunk
+  # (a 64-chunk call took 149s, 2.33 s/chunk), so the default 64 can run 2.8x
+  # systemd's 90s stop timeout. 16 x 3.90 = ~62s worst case, inside cortex's
+  # TimeoutStopSec. Throughput is unchanged; peak inference memory drops 4x.
+  max-chunks-per-call: 16
 
 migrations:
   - name: v2-field-renames

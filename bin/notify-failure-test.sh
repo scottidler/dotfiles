@@ -2,7 +2,8 @@
 # notify-failure-test.sh: fixture matrix for HOME/.local/bin/notify-failure.
 #
 # curl is a stub on PATH that appends its args to a log and exits per a mode
-# file (ok | http500 | slow-ok), so no test ever POSTs to ntfy. Retry backoff
+# file (ok | http500 | slow-ok), so no test ever POSTs to ntfy. systemctl is a
+# stub too, its output per a sysmode file (running | stopping | error | hang). Retry backoff
 # and the clock are overridden by env so the matrix runs in seconds.
 # NOTIFY_FAILURE=path overrides the script under test, so a mutated copy can
 # prove a case bites (it must sit beside ntfy-send, or copy that too).
@@ -38,6 +39,17 @@ case "\$(cat "${CASE}/mode")" in
 esac
 STUB
   chmod +x "${CASE}/bin/curl"
+  echo running > "${CASE}/sysmode"
+  cat > "${CASE}/bin/systemctl" <<STUB
+#!/usr/bin/env bash
+case "\$(cat "${CASE}/sysmode")" in
+  running) echo running; exit 0 ;;
+  stopping) echo stopping; exit 1 ;;
+  error) exit 1 ;;
+  hang) sleep 30; exit 0 ;;
+esac
+STUB
+  chmod +x "${CASE}/bin/systemctl"
 }
 
 # run_nf <unit> [extra env assignments...]
@@ -108,6 +120,33 @@ run_nf a.service NOTIFY_FAILURE_NOW=1001 &
 wait
 eq "concurrent start: one POST" "$(posts)" "1"
 eq "concurrent start: suppressed count 1" "$(stamp a.service)" "1000 1"
+
+# 8: system stopping: no POST, stamp untouched, journal line on stderr.
+newcase stopping
+run_nf a.service NOTIFY_FAILURE_NOW=1000
+echo stopping > "${CASE}/sysmode"
+run_nf a.service NOTIFY_FAILURE_NOW=9000; rc=$?
+eq "stopping: exit 0" "${rc}" "0"
+eq "stopping: no further POST" "$(posts)" "1"
+eq "stopping: stamp unchanged" "$(stamp a.service)" "1000 0"
+eq "stopping: journal line" \
+  "$(grep -c 'a.service: suppressed (system stopping)' "${CASE}/stderr")" "1"
+
+# 9: probe error (no output, exit 1): fails open, alert sent.
+newcase probe-error
+echo error > "${CASE}/sysmode"
+run_nf a.service NOTIFY_FAILURE_NOW=1000
+eq "probe error: alert sent" "$(posts)" "1"
+eq "probe error: stamp written" "$(stamp a.service)" "1000 0"
+
+# 10: probe hang: the 5s timeout fires, alert sent, script returns in ~6s.
+newcase probe-hang
+echo hang > "${CASE}/sysmode"
+t0=$(date +%s)
+run_nf a.service NOTIFY_FAILURE_NOW=1000
+elapsed=$(( $(date +%s) - t0 ))
+eq "probe hang: alert sent" "$(posts)" "1"
+eq "probe hang: returned within 7s" "$([ "${elapsed}" -le 7 ] && echo yes || echo "no (${elapsed}s)")" "yes"
 
 echo "${pass} passed, ${fail} failed"
 [ "${fail}" -eq 0 ]

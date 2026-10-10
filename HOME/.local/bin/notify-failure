@@ -13,6 +13,8 @@
 #      NOTIFY_FAILURE_WINDOW (seconds, default 3600)
 #      NOTIFY_FAILURE_BACKOFFS (space-separated retry delays, default "5 30 120")
 #      NOTIFY_FAILURE_NOW (epoch override, tests only)
+# Skipped without an alert or a stamp write while the system manager reports
+# "stopping" (see below); fails open to alerting if that probe errors or hangs.
 set -uo pipefail
 
 unit="${1:?usage: notify-failure <unit>}"
@@ -28,6 +30,16 @@ log() { echo "notify-failure: $*" >&2; }
 
 exec 9>"${state}/${safe}.lock"
 flock 9
+
+# Host going down (reboot, power off): PID 1 reports "stopping" (the command
+# exits non-zero in that state; stdout is what counts). Units killed by the
+# shutdown are not incidents. timeout 5: the bus may be going away, and a hung
+# probe must not hold the lock. Any other value, or empty on error, alerts.
+system_state="$(timeout 5 systemctl is-system-running 2>/dev/null)"
+if [ "${system_state}" = "stopping" ]; then
+  log "${unit}: suppressed (system stopping)"
+  exit 0
+fi
 
 now="${NOTIFY_FAILURE_NOW:-$(date +%s)}"
 last=0 suppressed=0
