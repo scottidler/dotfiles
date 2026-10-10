@@ -201,3 +201,123 @@ Repo: second-brain. Phase 3 `3c8db7a` (on Phase 2 `139b894`).
 
 ### Open questions
 - Oversized-note starvation (Tradeoffs above): acceptable as is, or should an oversized note that defers some number of times in a row take the next tick regardless of what summary drew? The doc does not cover it; it is left as implemented.
+
+## Phase 4: Action-cycle check points
+Repo: second-brain. Phase 4 `cdedea4` (on Phase 3 `3c8db7a`).
+
+### Design decisions
+- Action cycle: `daemon.rs:configured_actions_with_scanner` checks `stopped_before(stop, action)` at the top of every action, before the rescan, and again right after a rescan. A stop that lands during an action skips the rescan for the next one, and a stop that lands during the rescan still stops before dispatch. A stopped cycle returns the fingerprint it has so far. `configured_actions` and every daemon caller (startup sweep, watcher arm, periodic sweep) pass the daemon's handle. `classify_only`, the latched-oscillation path, passes it too.
+- classify: the check points sit in `classify.rs:Classifiers::classify`, which runs once per note. It checks before the primary call and before the fallback. A primary or fallback failure seen once the flag is set returns `Classification::Stopped`, so there is no fallback call and no `Low` result, and so no `mark_needs_review`. A primary that succeeds after the flag lands is applied: the call finished, and a stop does not throw away a real answer. `apply_classify` breaks out of the loop on `Stopped` and falls through to the post-loop `update_wikilinks_batch`, so moves already made are relinked. `lint_classify` (dry run) breaks the same way.
+- `Classification<T> { Done(T), Stopped }` is private to classify. `classify_note` returns `Classification<ClassifyResult>`.
+- naming: `naming.rs:apply_naming(.., stop)` delegates to a private `apply_naming_with(.., stop, rename)`, which takes the filesystem rename as a closure. The tests stop or fail the loop at a chosen rename through it. The loop moved into `execute_renames`, which returns `Result<RenameLoop { Complete, Stopped }>`. `apply_naming_with` runs `update_wikilinks_batch` over the completed renames whatever ended the loop, then returns the loop's error if there was one. A relink that also fails on that path is logged at error level and the rename error is returned. `NamingApplied.stopped` reports a stop.
+- lint: `lib.rs:lint_with_notes(.., stop)` hands the handle to `apply_naming` only. The other appliers have no check point (the doc's "checked around the action only" list), so after a stopped naming pass lint finishes frontmatter, tags and scope, and the cycle's next check point ends the cycle. `lint()` (CLI) passes `StopHandle::never()`.
+- fact: `memgraph.rs:extract_facts(.., stop)` checks before each note's extraction. `FactStats.stopped`. `graph.rs:extract_fact_layer` skips consolidation when extraction stopped, because noise deletes and bridges are writes. `FactLayerStats.stopped`.
+- graph: `graph.rs:build(.., stop)` checks before each note. A stopped pass keeps the notes it finished (edges and watermarks) and returns before the `last_run_at` write. So a stopped first build is rebuilt in full by the next pass, which is the doc's "partial graph until the next 900s graph tick rebuilds it". `GraphStats.stopped`. `run --backfill` skips the fact layer when the build stopped.
+- entities: `entities.rs:discover(.., stop)` checks before each note and returns `Discovery { proposals, scanned, stopped }`. The old tuple became a struct so the stop could be reported. A stopped pass drops its proposals and `run` writes nothing (`EntityReport.stopped`).
+- intel: a new `intel.rs:IntelFabric` port (`is_available`, `run_pattern`) with a `ShellFabric(&FabricConfig)` adapter, the same shape as `IntelLlm`. `generate` takes `fabric: &F` in place of `&FabricConfig`, plus `stop`. In `generate_weekly_review` a failed LLM call checks the flag (`Err(e) if stop.is_stopped()`) before the Fabric fallback. When it is set, the review is not written and `IntelReport.stopped` is set. The daily digest has no fallback, so it gets no check point. In the action cycle, a stopped intel does not mark the note cache dirty.
+- `Stopped` per stage: every stopped stage logs one info line naming where it stopped, is never counted as failed, and writes nothing past the check point. Daemon tick logs for graph, fact and entities print `stopped=`, and graph and entities log a stopped tick even when it processed 0 notes.
+- One-shot `run` entry points that the daemon calls with its handle (`classify::run`, `intel::run`), and the ones whose daemon ticks wrap them (`graph::run`, `entities::run`), take a `&StopHandle`. The four `sb` CLI call sites in `sb/src/cli/cortex.rs` pass `StopHandle::never()`, as the doc's API section says.
+- `cortex/AGENTS.md`: a new invariant bullet for the action-cycle and per-note check points.
+
+### Evidence
+- `otto ci` green on `cdedea4`: every task `finished successfully`, `All CI checks passed!`, 3108 passed (3093 at Phase 3 + 15 new), 0 failed. The Phase 2 harness lines are still present (`SIGTERM during 30s work ok (exited 100.368578ms after the signal)`).
+- New tests (15), each with a fixture vault or an in-memory index and test doubles:
+  - `daemon::tests::no_action_runs_after_a_stop_between_actions` (criterion 5): actions classify then lint, both applying. A scanner double records its calls and sets the flag during call 2, which is the rescan after classify's promotion. Asserts classify's move stands, lint did not run (a frontmatter-less root note keeps its bytes), exactly 2 scanner calls, and a fingerprint of `["classify"]`.
+  - `daemon::tests::no_action_runs_after_a_stop_during_the_top_scan` (criterion 5): the flag is set during scanner call 1. 0 actions, 1 call, inbox note and root note untouched.
+  - `daemon::tests::both_actions_write_without_a_stop`: the control. The same fixture with no stop writes through both actions, so the two tests above observe the check point and not a fixture that never writes.
+  - `classify::tests::stop_after_note_one_keeps_its_move_relinks_it_and_leaves_the_rest` (criterion 1): 3 inbox notes and a referrer `[[alpha]] [[beta]] [[gamma]]`. The primary double sets the flag after call 1. Asserts 1 classifier call, 0 fallback calls, `written == [inbox/alpha.md]`, `notes/alpha.md` classified, beta and gamma byte-identical in `inbox/`, the referrer's `alpha` resolving to `notes/alpha.md`, and 0 broken wikilinks (`links::lint_broken_links`).
+  - `classify::tests::classifier_failure_after_the_stop_runs_no_fallback_and_writes_nothing` (criterion 3): the primary sets the flag, then fails. 0 fallback calls, nothing written, note bytes unchanged.
+  - `classify::tests::fallback_failure_after_the_stop_writes_no_needs_review` (criterion 3, fallback leg): the primary fails with no stop, then the fallback sets the flag and fails. No `cortex-needs-review`.
+  - `classify::tests::total_failure_without_a_stop_still_holds_the_note_for_review`: the control. With no stop, the old hold-for-review behavior stands.
+  - `naming::tests::stop_after_rename_one_relinks_it_and_leaves_the_rest` (criterion 2): `Alpha Note`, `Beta Note`, `Gamma Note` and a referrer. The rename closure sets the flag after rename 1. Asserts `alpha-note.md` exists, Beta and Gamma keep their names, the referrer has `[[alpha-note]]`, and 0 broken wikilinks.
+  - `naming::tests::rename_error_on_note_two_relinks_note_one_before_returning_the_error` (criterion 2): the rename closure fails on call 2. Asserts `Err` carrying the injected failure, `alpha-note.md` landed, the referrer has `[[alpha-note]]`, and 0 broken wikilinks.
+  - `naming::tests::preset_stop_renames_nothing`.
+  - `intel::tests::weekly_llm_failure_after_the_stop_skips_the_fabric_fallback_and_writes_nothing` (criterion 4): the LLM double sets the flag and fails, and the Fabric double is available with `batch_weekly` configured. 0 Fabric calls, `report.stopped`, no file at `output_path`.
+  - `intel::tests::weekly_llm_failure_without_a_stop_falls_back_to_fabric`: the control. 1 Fabric call and the review is written with its output.
+  - `graph::tests::stopped_build_processes_no_note_and_leaves_last_run_at_unset`: preset flag gives 0 notes, 0 edges and `last_run_at` unset. The next unstopped pass is a full rebuild of both notes.
+  - `memgraph::tests::extract_facts_stops_before_the_next_note`: the extractor sets the flag on note 1. 1 extraction, note 1's edge written, `stopped`.
+  - `entities::tests::discover_stops_before_the_next_note_and_drops_its_proposals`: the extractor sets the flag on note 1. 1 extraction, proposals empty, `stopped`.
+- Existing tests: call sites updated mechanically (`&StopHandle::never()` added, `discover` destructured as `Discovery { .. }`, `generate` given `&ShellFabric(&fabric)`). No existing test pinned behavior this phase changes, so none needed inverting.
+- Mutations. Each was applied by a scratch script to the real source file, then `cargo test -p cortex --lib -- <filter>` ran. The script restored the file from a saved copy and checked it with `filecmp` (`restored ... (cmp ok)` for all 11):
+  - M1, action-cycle check disabled (`let stopped = false && stop.is_stopped();` in `stopped_before`):
+    ```
+    test daemon::tests::no_action_runs_after_a_stop_between_actions ... FAILED
+    test daemon::tests::no_action_runs_after_a_stop_during_the_top_scan ... FAILED
+    assertion `left == right` failed: lint ran after the stop and inserted frontmatter
+    test result: FAILED. 0 passed; 2 failed
+    ```
+  - M2, classify per-note check removed (`if false && stop.is_stopped()` before the primary call):
+    ```
+    test classify::tests::stop_after_note_one_keeps_its_move_relinks_it_and_leaves_the_rest ... FAILED
+    assertion `left == right` failed: no classifier call after the stop
+      left: 3
+     right: 1
+    ```
+  - M3, discard-after-flag removed (both the primary-failure and fallback-failure guards):
+    ```
+    test classify::tests::fallback_failure_after_the_stop_writes_no_needs_review ... FAILED
+    test classify::tests::classifier_failure_after_the_stop_runs_no_fallback_and_writes_nothing ... FAILED
+    assertion `left == right` failed: no fallback call after the stop
+      left: 1
+     right: 0
+    nothing written: ["inbox/alpha.md"]
+    test result: FAILED. 24 passed; 2 failed
+    ```
+  - M4, classify relink skipped on stop (`return Ok((report, written))` in place of `break`): the test PASSES (`test result: ok. 1 passed`). This is not a gap in the test. The classify relink is a no-op for every move classify records (see Open questions), so skipping it changes no byte.
+  - M5, naming relink skipped on stop (early `return` before `update_wikilinks_batch` when the loop stopped):
+    ```
+    test naming::tests::stop_after_rename_one_relinks_it_and_leaves_the_rest ... FAILED
+    referrer relinked to note 1's new name:
+    test result: FAILED. 23 passed; 1 failed
+    ```
+  - M6, the old `?` early return restored (`executed?` before the relink):
+    ```
+    test naming::tests::rename_error_on_note_two_relinks_note_one_before_returning_the_error ... FAILED
+    note 1 relinked before the error returned:
+    test result: FAILED. 23 passed; 1 failed
+    ```
+  - M7, naming per-rename check removed:
+    ```
+    test naming::tests::preset_stop_renames_nothing ... FAILED
+    test naming::tests::stop_after_rename_one_relinks_it_and_leaves_the_rest ... FAILED
+    assertion failed: applied.stopped
+    ```
+  - M8, intel check removed (`Err(e) if false && stop.is_stopped()`):
+    ```
+    test intel::tests::weekly_llm_failure_after_the_stop_skips_the_fabric_fallback_and_writes_nothing ... FAILED
+    assertion `left == right` failed: no Fabric call after the stop
+      left: 1
+     right: 0
+    ```
+  - M9 graph, M10 fact, M11 entities, per-note check removed in each:
+    ```
+    test graph::tests::stopped_build_processes_no_note_and_leaves_last_run_at_unset ... FAILED   (assertion failed: stats.stopped)
+    test memgraph::tests::extract_facts_stops_before_the_next_note ... FAILED                    (assertion failed: stats.stopped)
+    test entities::tests::discover_stops_before_the_next_note_and_drops_its_proposals ... FAILED (assertion failed: found.stopped)
+    ```
+- Success criteria:
+  - Classify, flag set after note 1 of 3: notes 2 and 3 untouched, note 1 classified and moved, its referrers resolve, 0 broken wikilinks. PASS (fails under M2). "Referrers of note 1 are relinked" passes only in the sense that they resolve: the relink rewrites nothing for a classify move (M4, Open questions).
+  - Naming, same shape, plus a rename forced to fail on note 2 still relinks note 1 before returning the error. PASS (fails under M5, M6, M7).
+  - A classifier failure returned after the flag is set produces no `needs-review` write and no fallback call. PASS (fails under M3).
+  - intel: LLM stub fails after the flag is set, Fabric stub never called. PASS (fails under M8).
+  - No action after the stop point runs (test-double scanner records calls). PASS (fails under M1).
+
+### Deviations
+- `IntelFabric` port added and `generate`'s `fabric: &FabricConfig` parameter replaced by `fabric: &impl IntelFabric`. The doc has no Fabric seam in intel, and criterion 4 needs a Fabric stub. Same effect in production (`ShellFabric` wraps the same two `crate::fabric` calls).
+- naming's rename is injected through a private `apply_naming_with`. The public `apply_naming` keeps its shape plus `stop`. The doc has no seam for "a rename forced to fail on note 2".
+- `classify::run`, `intel::run`, `graph::run` and `entities::run` gained a `stop` parameter, and the four `sb` call sites pass `never()`. Phase 3 kept `embed::run`'s signature and passed `never()` inside it. Here the daemon calls `classify::run` and `intel::run` directly with its handle, so they must take one, and `graph::run` / `entities::run` follow for one consistent shape. `lint()` keeps its signature because the daemon calls `lint_with_notes`.
+- The action-cycle check runs twice per action when the cache is dirty (before and after the rescan). The doc says "between actions". The second check catches a stop that lands during the rescan, and the first skips a rescan nobody will read.
+- A stopped weekly review writes nothing. The doc places only a check point there. Writing the review without its insights would persist `intel-input-hash` and pin the degraded review until the week's notes change, which breaks the stop write contract's "never writes".
+- A stopped fact extraction skips consolidation, and a stopped `graph run --backfill` build skips the fact layer. The doc does not mention either. Both are writes after the check point.
+- The classify check points live in `Classifiers::classify` rather than in the `apply_classify` loop body. It runs once per note, so the per-note check is the same, and it also covers the fallback check and the dry-run path.
+
+### Tradeoffs
+- `stopped: bool` on the existing stats structs (`GraphStats`, `FactStats`, `FactLayerStats`, `EntityReport`, `NamingApplied`, `IntelReport`) vs. a new enum per stage: those structs are already the return values, and a field keeps every caller's shape. The classify loop, which has no stats struct, uses the private `Classification` enum.
+- A classifier success after the flag is applied, not discarded: the call finished and its answer is real. Only failures are suspect, because a stop can cause them (a killed Fabric child).
+- lint's other appliers run after a stopped naming pass vs. returning early: the doc lists them as checked around only, they are short and per-file atomic, and the cycle check point right after lint ends the cycle.
+- `IntelFabric` local to intel vs. reusing `distillers::tags::FabricRunner`: `FabricRunner` has no timeout parameter and no availability check, and is built from the tags config. A local port matches `IntelLlm`.
+
+### Open questions
+- classify's post-loop relink rewrites nothing for any move classify records. It records only same-stem moves (`inbox/x.md` -> `notes/x.md`), and `update_wikilinks_batch` replaces only the stem inside a link target. A bare `[[x]]` resolves by suffix before and after the move, so it never needed a rewrite. A path-qualified `[[inbox/x]]` is left pointing at the old path and breaks on every promotion, stopped or not. Measured with a temporary test (removed): an unstopped promotion of `inbox/alpha.md` with a referrer `See [[inbox/alpha]].` left the referrer byte-identical and `broken=1`. This predates Phase 4 and is out of its scope. It is why M4 survives. Fix it here, or file it as its own issue?
+- classify still has `?` early returns inside the loop (`mark_needs_review`'s read and `write_atomic`) and on the post-loop rescan. Like naming's before this phase, an error there skips the relink of moves already made. Given the item above, that relink rewrites nothing today, so the effect is nil. The doc names only naming's `?` returns. Left as is.
+- Phase 3's oversized-note starvation question is still open.
