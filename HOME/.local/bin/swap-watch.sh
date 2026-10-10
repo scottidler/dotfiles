@@ -89,28 +89,28 @@ if [ "${new_state}" != "${prev_state}" ]; then
   crit_checks=0  # reset repeat counter on any transition
   case "${new_state}" in
     warn)
-      send_alert "Disk swap climbing on desk" \
+      send_alert "Disk swap climbing on $(hostname -s)" \
         "Disk swap (/swap.img) at ${disk_used_mb}MB -- zram overflow tier filling" \
         "default" "warning"
       ;;
     crit)
       if [ "${psi_crit}" -eq 1 ]; then
-        send_alert "Memory pressure critical on desk" \
+        send_alert "Memory pressure critical on $(hostname -s)" \
           "PSI full avg60=${psi_full_avg60}% (tasks stalled on memory), disk swap ${disk_used_mb}MB" \
           "high" "rotating_light"
       else
-        send_alert "Disk swap critical on desk" \
+        send_alert "Disk swap critical on $(hostname -s)" \
           "Disk swap (/swap.img) at ${disk_used_mb}MB, risk of OOM" \
           "high" "rotating_light"
       fi
       ;;
     full)
-      send_alert "🚨 DISK SWAP FULL on desk — INTERVENE NOW" \
+      send_alert "🚨 DISK SWAP FULL on $(hostname -s) — INTERVENE NOW" \
         "Disk swap at ${disk_used_mb}/${DISK_SWAP_CAP_MB}MB (>99%), PSI full=${psi_full_avg60}%. System will seize without intervention. Kill Firefox/Zoom or reboot." \
         "urgent" "rotating_light,skull"
       ;;
     ok)
-      send_alert "Swap back to normal on desk" \
+      send_alert "Swap back to normal on $(hostname -s)" \
         "Disk swap (/swap.img) at ${disk_used_mb}MB, PSI full avg60=${psi_full_avg60}%" \
         "low" "white_check_mark"
       ;;
@@ -123,11 +123,11 @@ if [ "${new_state}" = "${prev_state}" ]; then
     crit_checks=$(( crit_checks + 1 ))
     if [ $(( crit_checks % CRIT_REPEAT_INTERVAL )) -eq 0 ]; then
       if [ "${new_state}" = "full" ]; then
-        send_alert "🚨 STILL FULL — desk swap ${disk_used_mb}MB (check #${crit_checks})" \
+        send_alert "🚨 STILL FULL — $(hostname -s) swap ${disk_used_mb}MB (check #${crit_checks})" \
           "Disk swap STILL at ${disk_used_mb}/${DISK_SWAP_CAP_MB}MB, PSI full=${psi_full_avg60}%. Unresolved for $((crit_checks * 5))min. INTERVENE." \
           "urgent" "rotating_light,skull"
       else
-        send_alert "🚨 Still critical — desk swap ${disk_used_mb}MB (check #${crit_checks})" \
+        send_alert "🚨 Still critical — $(hostname -s) swap ${disk_used_mb}MB (check #${crit_checks})" \
           "Disk swap still at ${disk_used_mb}MB (crit >${CRIT_MB}MB), PSI full=${psi_full_avg60}%. Unresolved for $((crit_checks * 5))min." \
           "high" "rotating_light"
       fi
@@ -138,11 +138,11 @@ fi
 # --- Growth alert (escalated if already in crit/full) ---
 if [ "${growth_mb}" -ge "${GROWTH_MB_ALERT}" ] && [ "${ram_quiet}" -eq 0 ]; then
   if [ "${new_state}" = "crit" ] || [ "${new_state}" = "full" ]; then
-    send_alert "🚨 Swap surging while critical on desk" \
+    send_alert "🚨 Swap surging while critical on $(hostname -s)" \
       "Disk swap grew ${growth_mb}MB in the last check, now ${disk_used_mb}MB. Already in ${new_state} state." \
       "high" "rotating_light,chart_with_upwards_trend"
   else
-    send_alert "Disk swap growing fast on desk" \
+    send_alert "Disk swap growing fast on $(hostname -s)" \
       "Disk swap grew ${growth_mb}MB in the last check, now ${disk_used_mb}MB" \
       "high" "chart_with_upwards_trend"
   fi

@@ -23,7 +23,7 @@ llm:
 telegram:
   bot-token: TELEGRAM_BOT_TOKEN
   allowed-chat-ids: [8474692082]
-  host: desk
+  host: ripr
 
 # discord:
 #   bot-token: DISCORD_BOT_TOKEN
@@ -41,7 +41,7 @@ telegram:
 signal:
   allowed-senders: []         # peer ACI UUIDs allowed to send borg material
   # notification-recipient defaults to Note-to-Self (your own account)
-  host: desk
+  host: ripr
   # notetoself-rate-threshold-per-hour: 100  # default; raise only after a documented baseline reason
 
 # Desktop notifications - peer to the Telegram notifier.
@@ -49,7 +49,7 @@ signal:
 # (user session D-Bus). Host-gated so headless borg hosts stay silent.
 desktop:
   enabled: true
-  host: desk
+  host: ripr
   timeout-ms: 5000
   appname: borg
 

@@ -18,4 +18,3 @@ postgres = "latest"
 yarn = "1.22.22"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 "npm:web-ext" = "latest"
-"github:danielmiessler/fabric" = { version = "1.4.470", exe = "fabric" }
