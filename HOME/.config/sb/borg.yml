@@ -112,7 +112,7 @@ routing:
   confidence-threshold: 0.6
 
 hotkey:
-  host: desk.lan
+  host: ripr.lan
   port: 8181
   key: "<Ctrl><Shift>b"
 

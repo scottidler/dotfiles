@@ -215,6 +215,7 @@ aliases:
   # ========================================
 
   home|desk: ssh desk.lan
+  ripr: ssh ripr.lan
   home.ts|desk.ts: ssh desk.taild2b9be.ts.net
   work|lappy: ssh ltl-7007.lan
   mini: ssh saidler@mini.lan
