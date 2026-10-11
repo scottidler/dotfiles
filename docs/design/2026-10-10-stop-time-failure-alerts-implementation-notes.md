@@ -376,3 +376,99 @@ install exit 1          (no ~/.config/systemd created in the scratch home)
 ### Open questions
 - Operator-side, not run here: both hosts need `sb` released, `sb cortex daemon --install`, `daemon-reload`, a cortex restart, and the Phase 1 `user@` drop-in applied. Until then `sb doctor` on ripr reports the user@ Error (`5s`) and cortex.service drift, which is correct.
 - None otherwise.
+
+## Audit round 1 fold-in
+Repo: second-brain. Source: implementation audit round 1, `/home/saidler/.cache/review-panel/runs/XGoG9zvq/synthesis.md` (with `probes.md` beside it). All four ranked items folded in, one commit each, on Phase 5 `d3aae90`:
+- `df701d4` must-fix 2 in the synthesis ranking (finding 1 here): oversized-note starvation.
+- `5c37fb7` must-fix 1 (finding 2): classify relink was a no-op.
+- `d9e51b8` cheap win 3 (finding 3): install guard vs rendered `TimeoutStopSec`.
+- `e5a8871` cheap win 4 (finding 4): stop during the startup model load.
+Nothing was installed, restarted, pushed, tagged or bumped.
+
+### Design decisions
+- Finding 1, `cortex/src/embed/carry.rs:EmbedCarry`: the daemon holds one `EmbedCarry` across ticks (`daemon.rs:start_watching`, passed `&mut` into `embed::daemon_tick_with_model` and on to `embed_tick`). `embed_tick` rotates the enabled kinds so the carried kind runs first (`EmbedCarry::run_order`), clears the carry, and sets it again only when the allowance ends the tick (`allowance_ended`): the running kind if it drew nothing this tick, else the next kind in the run order. Any other tick end (backlog empty, a zero-progress batch, a stop) leaves it clear. A kind that leads runs on a fresh allowance, so its head note either fits or takes the oversized exception. The bound is unchanged: the lead kind can spend at most max(cap, largest note), and later kinds only get what is left.
+- Finding 2, `cortex/src/naming.rs:update_wikilinks_batch` / `relink`: each rename resolves to a `Destination { stem, path, changed_folder }`. A path-qualified target (one with a `/`) of a note that changed folders gets its whole path portion replaced with the new vault-relative path minus `.md`. The link's own `.md`, `#heading`, `#^block`, `|alias` and `!` survive. Every other case (a bare target, or any target of a same-folder rename) keeps the old stem-only swap, so naming's behavior is byte-identical (all its existing relink tests pass unedited, including `[[notes/Old-Name.md|x]]` -> `[[notes/new-name.md|x]]`).
+- Finding 2, `cortex/src/classify.rs`: the loop moved out of `apply_classify` into `classify_targets(.., run: &mut ApplyRun)`. `ApplyRun { report, moves, written }` lives in the caller, so every completed move is in `run.moves` whatever ended the loop. `apply_classify` always runs `relink_moves` next, then returns the loop's error if there was one (logged with the relink outcome), which mirrors naming. `relink_moves` keeps the full-vault rescan; if the rescan fails it relinks over the run's own note set with the moved paths swapped for their destinations, then returns the rescan error.
+- Finding 3, `cortex/src/daemon.rs:service_unit`: `desired_systemd_unit` resolves home, binary and data dir, then calls `service_unit(.., &vault::paths::cortex_config())`. `service_unit` loads that file with `Config::load_service_config` (the loader the guard uses) and hands its `daemon.stop-timeout-secs` to `render_systemd_unit` as a new `timeout_stop_sec` argument. The install and `sb doctor`'s drift render share it.
+- Finding 4, `cortex/src/daemon/model_load.rs:load_unless_stopped`: runs the load, maps a failure to `None` (the old degrade path, same log line), then reads the stop flag. `StartupModel::Stopped` makes `start_watching` drop the watcher and return `Ok(())` before the startup sweep. A stop during a failed load exits too.
+- `cortex/AGENTS.md`: the embed-cap, check-point and stop-timeout invariant bullets each gained one sentence for these.
+
+### Evidence
+- `otto ci` green on every commit: `All CI checks passed!`, rc 0. Test totals: 3131 at `d3aae90` -> 3138 (`df701d4`) -> 3144 (`5c37fb7`) -> 3145 (`d9e51b8`) -> 3149 (`e5a8871`). The shutdown harness lines are still present on the last run (`SIGTERM during 30s work ok (exited 120.434589ms after the signal)`).
+- Mutations: each applied by a scratch script to the real source file, `cargo test -p cortex --lib` on the filter, file restored from a saved copy and checked with `cmp` (`restored (cmp ok)` every time).
+- Finding 1. New tests: `embed::tests::a_summary_failing_every_tick_cannot_starve_an_oversized_note` (one summary whose inference fails every tick, a 600-chunk transcript note and a 100-chunk one, cap 512: the 600-chunk note is embedded within 2 ticks, no tick sends more than 600 chunks, and tick 3 still embeds the 100-chunk note behind the summary), plus 6 unit tests in `embed/carry/tests.rs`. The existing tick tests now share one carry across their ticks, as the daemon does, and pass unedited otherwise. Mutation M1, carry ignored (`self.lead.filter(|_| false)` in `run_order`, the pre-fix behavior):
+  ```
+  test embed::tests::a_summary_failing_every_tick_cannot_starve_an_oversized_note ... FAILED
+  assertion `left == right` failed: the oversized note embeds within 2 ticks: [1, 1]
+    left: 0
+   right: 600
+  test result: FAILED. 41 passed; 1 failed
+  ```
+  `[1, 1]` is the chunks sent per tick: the failing summary's 1 draw, then nothing.
+- Finding 2. The new and amended tests were first run against the `d3aae90` versions of `classify.rs` and `naming.rs` (the tests only use APIs that existed there), all 7 FAILED:
+  ```
+  test classify::tests::stop_after_note_one_keeps_its_move_relinks_it_and_leaves_the_rest ... FAILED
+  test classify::tests::loop_error_after_a_move_relinks_it_before_returning_the_error ... FAILED
+  test classify::tests::rescan_failure_still_relinks_completed_moves ... FAILED
+  test classify::tests::unstopped_promotion_relinks_path_qualified_links ... FAILED
+  test naming::tests::relink_rewrites_a_partial_path_to_the_full_new_path ... FAILED
+  test naming::tests::relink_moves_a_path_qualified_target_to_the_new_folder ... FAILED
+  test naming::tests::relink_rewrites_path_and_stem_on_a_move_with_a_new_name ... FAILED
+    left: "[[inbox/alpha]] [[inbox/alpha|A]] [[Inbox/alpha.md#Summary]] ![[inbox/alpha]] [[alpha]]"
+   right: "[[notes/alpha]] [[notes/alpha|A]] [[notes/alpha.md#Summary]] ![[notes/alpha]] [[alpha]]"
+  test result: FAILED. 49 passed; 7 failed
+  ```
+  - The Phase 4 classify stop test gained `Also [[inbox/alpha]], [[inbox/alpha|Alpha]] and [[inbox/beta]].` in its referrer and now asserts the exact relinked line (`[[notes/alpha]], [[notes/alpha|Alpha]] and [[inbox/beta]]`, bare links untouched) as well as 0 broken links.
+  - M4 again, relink skipped on stop. The old form (`return` in place of `break`) cannot be applied any more because the relink now runs outside the loop; the same effect is dropping the completed moves on a stop (`run.moves.clear(); break;`). It now bites:
+    ```
+    test classify::tests::stop_after_note_one_keeps_its_move_relinks_it_and_leaves_the_rest ... FAILED
+    note 1's path-qualified links are relinked; the bare links and note 2's stay:
+    test result: FAILED. 28 passed; 1 failed
+    ```
+  - M12, path rewrite disabled (`if false && dest.changed_folder ...` in `relink`): the same 7 tests FAILED (`49 passed; 7 failed`).
+  - M13, the old `?` early return restored (`looped?;` before `relink_moves`):
+    ```
+    test classify::tests::loop_error_after_a_move_relinks_it_before_returning_the_error ... FAILED
+    note 1 relinked before the error returned:
+    test result: FAILED. 28 passed; 1 failed
+    ```
+  - M14, the rescan `?` restored (`Err(e) if true => return Err(e),` ahead of the fallback arm):
+    ```
+    test classify::tests::rescan_failure_still_relinks_completed_moves ... FAILED
+    the move is relinked over the run's own note set:
+    test result: FAILED. 28 passed; 1 failed
+    ```
+  - `loop_error_after_a_move_relinks_it_before_returning_the_error` forces the error the way Syncthing would: note 2 is scanned, then deleted, so its needs-review write cannot read it. `rescan_failure_still_relinks_completed_moves` makes a directory mode 000 after the scan, and restores it before asserting.
+- Finding 3. New test `daemon::stop_budget::tests::installed_timeout_comes_from_the_config_the_guard_validated`, the audit's repro: service cortex.yml at 180, run config at 100. The guard passes, and the unit carries `TimeoutStopSec=180` and `--config <service cortex.yml>`. Mutation M15, render from the run config again:
+  ```
+  test daemon::stop_budget::tests::installed_timeout_comes_from_the_config_the_guard_validated ... FAILED
+  TimeoutStopSec=100
+  test result: FAILED. 4 passed; 1 failed
+  ```
+  Live CLI repro (probe 2's command, `HOME`, `XDG_CONFIG_HOME` and `XDG_DATA_HOME` all in a scratch dir, built `target/debug/sb`): rc 0, `ExecStart=... cortex --config .../xdg/sb/cortex.yml ...` and `TimeoutStopSec=180` (probe 2 at `d3aae90`: `TimeoutStopSec=100`).
+  - The first `otto ci` run on this commit failed `sb` `cli::checks::tests::cortex_drift_uses_the_vault_the_unit_was_installed_with` (`a --vault install is not drift`). That test calls `desired_systemd_unit`, which reads `XDG_CONFIG_HOME`, without the `serial(env_xdg)` lock every test that repoints `XDG_CONFIG_HOME` holds. A parallel test repointed it between the two renders, so they disagreed. Reproduced 1 failure in 3 runs of `cli::checks::`; after marking it `#[serial_test::serial(env_xdg)]`, 0 in 6, then CI green. The race predates this commit (the old render already checked `cortex_config().exists()`); loading the file widened the window.
+- Finding 4. New tests in `daemon/model_load/tests.rs`: a stop during the load returns `Stopped`, a stop during a failed load returns `Stopped`, no stop hands back the model, and a failed load without a stop returns `Ready(None)`. Mutation M16, check removed (`if false && stop.is_stopped()`):
+  ```
+  test daemon::model_load::tests::a_stop_during_a_failed_load_still_exits ... FAILED
+  test daemon::model_load::tests::a_stop_during_the_load_exits_before_the_startup_sweep ... FAILED
+  test result: FAILED. 2 passed; 2 failed
+  ```
+
+### Deviations
+- Finding 1: the carry rule is wider than "the deferred oversized note's kind leads". Any kind left waiting on the allowance with nothing embedded leads the next tick, and a kind that made progress hands the lead to the next kind. The narrow rule misses the same starvation for a note at or under the cap but larger than what a failing summary leaves (cap - k < n <= cap), and a small cap a failing summary can spend whole before the transcript kind runs at all. The wider rule covers both with the same mechanism and the same bound.
+- Finding 2: the fix lives in the shared `update_wikilinks_batch`, so migrate's folder moves (`migrate.rs:238`) now rewrite path-qualified links too. Same behavior and same reason; migrate has no test of its own for it.
+- Finding 2: a path-qualified target is rewritten to the full vault-relative path, not to the same number of path components it had (`[[inbox/x]]` naming `a/inbox/x.md` becomes `[[a/notes/x]]`). The full path cannot match another `*/notes/x.md` by suffix.
+- Finding 2: the rescan error path has a fallback (relink over the run's own note set) that the ask did not spell out. Without it there is no note list to relink over when the rescan fails.
+- Finding 3: `render_systemd_unit` gained a `timeout_stop_sec` argument instead of reading `config.daemon.stop_timeout_secs`. The render tests pass 180 or the config value; the goldens are unchanged.
+- Finding 3: one `sb` test outside the ask was serialized (Evidence above).
+
+### Tradeoffs
+- Carry in daemon-held state vs. a rule that failed draws do not clear `fresh` (the synthesis's other option): a failed inference still spends the wall clock the cap bounds, so letting it keep `fresh` would let a tick run failing summaries plus an oversized note, over max(cap, largest note). The carry keeps the bound and the draw accounting as they were.
+- Rotating the kind order vs. moving only the carried kind to the front: rotation keeps the kinds in their cycle, so with claim enabled the kinds take turns instead of the same two trading the lead.
+- classify loop as a function with a `&mut ApplyRun` vs. an immediately called closure: the function names what the loop does, and it is the same shape as naming's `execute_renames(.., applied: &mut Vec<_>)`.
+- Rescan error returned after the fallback relink vs. logging it and returning Ok: an unreadable directory means its notes were not relinked, so the run fails loudly.
+
+### Open questions
+- Accepted residual (finding 4): the model load itself is not interruptible. hf-hub 0.5.0 `get` returns the cached path with no network on a warm host (probes.md probe 4), so the window there is the model mmap. On a cold host, or after a model change, a stop during the download waits for it to finish, and if that outlasts `TimeoutStopSec` (180s) systemd SIGKILLs cortex. Accepted as is, per the round 1 ask.
+- classify's suffix-collision move (`inbox/foo.md` -> `notes/foo-2.md`) is still not recorded for the relink, by design: a bare `[[foo]]` names a different note. A path-qualified `[[inbox/foo]]` does name the moved note and still breaks on that move. Fixing it needs a per-move flag ("rewrite path-qualified targets only"). Fix it, or leave it?
+- The daemon's `StartupModel::Stopped` arm in `start_watching` is not covered by a test; the unit tests cover `load_unless_stopped`, and starting the real daemon needs a model load. UNVERIFIED live; Phase 6 does not exercise it either.

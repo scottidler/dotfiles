@@ -201,7 +201,7 @@ Ship order: Phase 0 first; Phase 1 (dotfiles) is independent of Phases 2-6 (seco
 **Model:** opus
 - Between actions; classify and naming per note with relink-on-stop; fact, graph, entities per note.
 - **Success criteria:**
-  - Classify with the flag set after note 1 of 3: notes 2 and 3 are untouched, note 1 is classified and moved, referrers of note 1 are relinked, and the fixture vault has 0 broken wikilinks.
+  - Classify with the flag set after note 1 of 3: notes 2 and 3 are untouched, note 1 is classified and moved, referrers of note 1 are relinked, and the fixture vault has 0 broken wikilinks. The fixture's referrer carries path-qualified links (`[[inbox/x]]`, `[[inbox/x|alias]]`) to note 1, and they come out as `[[notes/x]]` / `[[notes/x|alias]]`. Amended after implementation audit round 1: a bare `[[x]]` resolves by stem before and after a same-stem move, so a fixture with only bare links passed with the relink skipped and the criterion could not fail. Only a path-qualified referrer depends on the relink.
   - Naming, same shape; plus a `rename` forced to fail on note 2 still relinks note 1's rename before returning the error.
   - A classifier failure returned after the flag is set produces no `needs-review` write and no fallback call.
   - intel: LLM stub fails after the flag is set; the Fabric stub is never called.
@@ -264,6 +264,11 @@ Ship order: Phase 0 first; Phase 1 (dotfiles) is independent of Phases 2-6 (seco
   - tick-wide embed allowance shared across kinds, oversized-note exception kept; association named; probe-hang and stopping-with-exit-1 test cases; restart and rollback steps (cheap wins)
   - Q1 (per-tick cap) closed below.
 - 2026-10-10, panel round 2 (both seats independently): own the user@ deadline, do not park. Parking broke the no-deferral-without-say-so rule (Scott's scope: "for the whole thing"), and reboot-time damage self-repairs nowhere (naming and classify relink only after the loop). Folded: `zz-cortex-stop.conf` at 210s (name sorts after vendor `timeout.conf`), doctor check of user@ vs `stop-timeout-secs`, user@ acceptance criterion, reboot test merged with Spike B into one reboot in Phase 6, gnome-shell's own stop timeout corrected to 5s, rollback.
+- 2026-10-10, implementation audit round 1 (Architect + Staff Engineer; synthesis `/home/saidler/.cache/review-panel/runs/XGoG9zvq/synthesis.md`), all four ranked items fixed in second-brain, one commit each, no pushbacks:
+  - oversized-note starvation: a summary that failed every tick still drew from the allowance, so the transcript kind never got a fresh one. The daemon now carries the kind left waiting on the allowance across ticks, and it leads the next tick on a fresh allowance; the bound stays max(cap, largest note) (`df701d4`)
+  - classify relink was a no-op: the shared relink now rewrites a path-qualified target to the new path when a note changes folders (bare `[[x]]` untouched, naming's stem rename unchanged), and classify relinks completed moves before any mid-loop or rescan error returns, mirroring naming. Phase 4's classify criterion amended to match (`5c37fb7`)
+  - install guard mismatch: `TimeoutStopSec` renders from `vault::paths::cortex_config()`, the file the guard validates, not the run's `--config` (`d9e51b8`)
+  - stop during model load: the daemon checks the stop flag right after the startup model load and exits before the startup sweep. A cold hf-hub download is still not interruptible, accepted residual (`e5a8871`)
 - 2026-10-10, per-tick cap: both seats confirm the per-tick cap is a bug against the `embed.rs:70-84` doc comment and Scott's `cortex.yml` comment ("Hard ceiling on chunks embedded per tick"), and that it belongs here. In scope as a bug fix (Phase 3).
 
 ## Alternatives Considered
