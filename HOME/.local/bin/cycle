@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# cycle <on|off> [--check]
+#   on  = reboot (off, then back on)
+#   off = power off
+#
+# Reboot or power off WITHOUT `systemctl reboot -i`.
+# Ptyxis registers a GNOME Session shutdown inhibitor for every tab with a
+# foreground command (Claude sessions included). `-i` overrides them and tears
+# gdm/GPU down under running apps, so Electron apps crash (SIGTRAP, apport dialog).
+# This script finds the other tabs' foreground commands, refuses while any exist,
+# and otherwise fires the shutdown from a 3s transient timer so this tab's own
+# foreground process (the script) has exited and stops blocking.
+set -euo pipefail
+
+usage() { echo "usage: cycle <on|off> [--check]  (on = reboot, off = power off)"; }
+
+action=
+check=0
+for arg in "$@"; do
+  case $arg in
+    on) action=reboot ;;
+    off) action=poweroff ;;
+    --check) check=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
+[[ -n $action ]] || { usage >&2; exit 2; }
+
+others=$(ps -eo pid,tty,stat,comm --no-headers |
+  awk -v me="$$" '
+    $1 != me && $2 ~ /^pts\// && $3 ~ /\+/ && $4 !~ /^(zsh|bash|fish|sh|ps|awk|sudo)$/ {
+      if (!($2 in first)) { first[$2] = $4; order[++n] = $2 }
+      count[$2]++
+    }
+    END { for (i = 1; i <= n; i++) printf "  %s  %s (+%d more)\n", order[i], first[order[i]], count[order[i]] - 1 }')
+
+if [[ -n $others ]]; then
+  echo "Foreground commands in other terminal tabs (each blocks shutdown):"
+  echo "$others"
+  echo "Exit them (e.g. /exit in Claude) and rerun."
+  exit 1
+fi
+
+echo "Shutdown blockers still held (one is this tab while the script runs):"
+systemd-inhibit --list --no-pager --no-legend | awk '$NF == "block" && /shutdown/' | sed 's/^/  /' || true
+
+if (( check )); then
+  echo "check only: no other tab is blocking; would $action."
+  exit 0
+fi
+
+sudo -v
+sudo systemd-run --quiet --on-active=3s --timer-property=AccuracySec=100ms \
+  /bin/sh -c '
+    systemctl "$1" && exit 0
+    runuser -u "$2" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$3/bus" \
+      notify-send -u critical "cycle refused" \
+      "A shutdown inhibitor is still held. Run: systemd-inhibit --list"
+    exit 1' sh "$action" "$USER" "$(id -u)"
+
+echo "${action} in 3s; leaving this tab idle."
