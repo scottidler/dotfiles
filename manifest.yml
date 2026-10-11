@@ -239,6 +239,8 @@ apt:
   - vlc
   # vulkaninfo, to verify the GPU stack for steam
   - vulkan-tools
+  # HTML/CSS -> PDF engine for pandoc (clyde report --format pdf; wkhtmltopdf is gone from 26.04)
+  - weasyprint
   - wget
   # wl-copy and wl-paste for Wayland clipboard access
   - wl-clipboard
