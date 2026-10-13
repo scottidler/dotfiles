@@ -24,7 +24,6 @@ pkg:
   - tmux
   - tree
   - sshfs
-  - cargo
   - pwgen
   - whois
   - mpg123
