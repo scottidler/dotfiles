@@ -1418,9 +1418,18 @@ script:
     # only ships macOS/Windows, so this builds from source. llama-helper (the
     # AI-summary sidecar) SIGILLs unless built with target-cpu=native -- the
     # ambient RUSTFLAGS (mold linker, see [build] above) doesn't set that, so
-    # build-gpu.sh is run with it added explicitly. Installing the built .deb
+    # build-gpu.sh is run with it added explicitly. (desk was Sandy Bridge-EP,
+    # no AVX2; on newer CPUs the flag is just a speedup.) Installing the built .deb
     # (rather than `cargo install`) is what gets the sidecar, bundled
     # templates, desktop entry, and icon all placed correctly.
+    # Tauri build libs, plus glslc/OpenBLAS: build-gpu.sh only picks Vulkan
+    # when VULKAN_SDK and BLAS_INCLUDE_DIRS are set, else it silently builds
+    # CPU-only.
+    sudo apt install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf \
+      libayatana-appindicator3-dev libgtk-3-dev \
+      libvulkan-dev glslc spirv-headers libopenblas-dev
+    export VULKAN_SDK=/usr
+    export BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu
     repo=~/repos/Zackriya-Solutions/meetily
     if [ ! -d "$repo" ]; then
       git clone --recurse-submodules git@github.com:Zackriya-Solutions/meetily.git "$repo"
