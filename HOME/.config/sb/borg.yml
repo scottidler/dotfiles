@@ -266,3 +266,9 @@ harvest:
 # ---------------------------------------------------------------------------
 intake:
   retention-days: 21
+
+# Sized for the Threadripper daemon host (64 threads, 122 GB). The code
+# defaults (8 / 4) were sized for desk.lan.
+pipeline:
+  max-concurrent-traces: 64
+  max-concurrent-heavy-traces: 32
