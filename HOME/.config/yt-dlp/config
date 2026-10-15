@@ -1,0 +1,5 @@
+# Read by every yt-dlp run, including borg's ingest pipeline.
+# YouTube bot-checks this IP without a signed-in session: use Firefox's cookies.
+--cookies-from-browser firefox
+# YouTube's n-challenge needs the EJS solver script; deno runs it.
+--remote-components ejs:github
