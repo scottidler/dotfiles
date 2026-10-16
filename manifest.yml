@@ -226,6 +226,8 @@ apt:
   - steam-launcher
   # Wayland compositor (i3-compatible)
   - sway
+  # coredumpctl: keeps core dumps and backtraces of crashed services (borg)
+  - systemd-coredump
   # mesh VPN client
   - tailscale
   - tesseract-ocr
