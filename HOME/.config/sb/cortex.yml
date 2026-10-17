@@ -263,15 +263,15 @@ fabric:
 # through the shared closed-vocabulary classifier and promotes inbox notes on
 # its confidence (high/medium promote, low holds). `fallback` runs when the
 # selected classifier errors - `deterministic` re-derives tags locally from the
-# note's own tags and author-tags, so a classifier.dev outage only holds notes
-# that carry no tags at all. `api-key-env` names the env var CLASSIFY_API_KEY,
+# note's own tags and author-tags, so a jev outage only holds notes that
+# carry no tags at all. `api-key` names the env var ESCOTE_TYPESAFE_API_KEY,
 # reaching cortex.env through the daemon env-bootstrap above, never the key
 # value itself. The vocabulary paths stay on `sweep` - one source of truth.
 # ---------------------------------------------------------------------------
 tags:
   classifier:
-    classifier: classifier-dev
+    classifier: jev
     threshold: 0.9
     fallback: deterministic
-    # Keyless public tier; see borg.yml for why CLASSIFY_API_KEY is gone.
-    # Add `token-env: CLASSIFIER_DEV_TOKEN` for a live workspace key.
+    # TypeSafe jev, called directly; key from ESCOTE_TYPESAFE_API_KEY (the
+    # `api-key` default) via cortex.env. See borg.yml.

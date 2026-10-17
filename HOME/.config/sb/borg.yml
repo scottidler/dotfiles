@@ -209,25 +209,21 @@ distill:
 # ---------------------------------------------------------------------------
 # Tags-only classification (docs/design/2026-09-19-tags-only-classification.md,
 # Phase 6). Same `tags.classifier` block, same shape, in cortex.yml - both
-# parse it through `distillers::tags::TagsClassifierConfig`. `classifier-dev`
+# parse it through `distillers::tags::TagsClassifierConfig`. `jev`
 # is the closed-vocabulary multi-label classifier; when it errors at ingest,
 # `fallback` runs instead and the receipt is marked degraded rather than
-# publishing a silently-untagged note. `api-key-env` names the env var
-# CLASSIFY_API_KEY, reaching `borg.env` through the existing env-bootstrap
-# above, never the key value itself.
+# publishing a silently-untagged note. `api-key` names the env var
+# ESCOTE_TYPESAFE_API_KEY, reaching `borg.env` through the existing
+# env-bootstrap above, never the key value itself.
 # ---------------------------------------------------------------------------
 tags:
   classifier:
-    classifier: classifier-dev
+    classifier: jev
     threshold: 0.9
     fallback: deterministic
-    # No `token-env`: the KEYLESS public tier. CLASSIFY_API_KEY was present in
-    # every shell and in the secrets manifest while classifier.dev rejected it
-    # (401 invalid_api_key), so every classify fell back to deterministic and
-    # nothing reported it. Keyless is rate-limited (3,000/min fast, 200/min
-    # smart, 200 texts per call, which is what batches chunk at) and needs no
-    # setup. Add `token-env: CLASSIFIER_DEV_TOKEN` only for a live workspace
-    # key from classifier.dev/app/keys.
+    # TypeSafe jev, called directly. The key comes from the env var named by
+    # `api-key` (default ESCOTE_TYPESAFE_API_KEY, keep secret
+    # escote-typesafe-api-key), which reaches borg.env through env-bootstrap.
 
 # ---------------------------------------------------------------------------
 # Nightly harvest (sb-harvest.timer). Added 2026-08-15: the section was absent
