@@ -17,6 +17,12 @@ watcher:
 # 600 seconds = 10 minutes. Lower = fresher counts, more contention.
 inbound-recompute-interval-secs: 600
 
+# Judge key for `sb oracle eval`: the env var NAME, never the value. The value
+# comes from the keep .age secret (escote-anthropic-api-key).
+llm:
+  api-keys:
+    anthropic: ESCOTE_ANTHROPIC_API_KEY
+
 # Logging. Stays out of stdout (MCP JSON-RPC contract).
 logging:
   level: info
