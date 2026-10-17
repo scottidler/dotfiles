@@ -97,12 +97,18 @@ channels:
   data-platform-internal: C023YTN4B1D
   eng-on-call: C07U7SD5ZDY
   engineering: C0L0DJU56
+  engineering-leadership: C089C6Y41ND
   engineering-mgmt: GMW66K3NC
+  enterprise-ai-onboarding-and-configuration: C0AMAE8GPGT
   incidents: C01EMTW0XS7
   it-helpdesk: C02U9V18Q6T
+  it-security: C01TX6ES72B
   opex-monthly: C09RKR0UZ3L
   platform-internal: C039YLDJW5T
+  platform-leadership: C0A71B867GV
+  proj-mintlify: C0C500084DV
   scrum-of-scrums: C098GCTV2B0
+  security-internal: C0B6SS2AY74
   sre: CBC5M4ZQW
   sre-internal: C01FXF7P3ST
   sre-it: C0A0P2N7R7D
@@ -110,6 +116,7 @@ channels:
   sre-solutions: C05JAH4PEMA
   staging-env: C01TSJ3F9GV
   tech-spec-reviews: C0AA8UBU5MX
+  tech-staff-team: C03BG3BLSV9
 
 server:
   port: 8889
