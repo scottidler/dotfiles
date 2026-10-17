@@ -1,62 +1,129 @@
 #!/usr/bin/env bash
-# cycle <on|off> [--check]
+# cycle <on|off> [--check | --graceful]
 #   on  = reboot (off, then back on)
 #   off = power off
+#   --check     report blocking tabs, change nothing
+#   --graceful  SIGTERM the other tabs' foreground commands instead of refusing
 #
 # Reboot or power off WITHOUT `systemctl reboot -i`.
 # Ptyxis registers a GNOME Session shutdown inhibitor for every tab with a
 # foreground command (Claude sessions included). `-i` overrides them and tears
 # gdm/GPU down under running apps, so Electron apps crash (SIGTRAP, apport dialog).
-# This script finds the other tabs' foreground commands, refuses while any exist,
-# and otherwise fires the shutdown from a 3s transient timer so this tab's own
+# Without --graceful the script lists the other tabs' foreground commands and
+# refuses. With it, SIGTERM goes to each tab's foreground process group, the
+# script waits for them to exit, and it never escalates to SIGKILL. Once every
+# tab is idle it fires the shutdown from a 3s transient timer, so this tab's own
 # foreground process (the script) has exited and stops blocking.
 set -euo pipefail
 
-usage() { echo "usage: cycle <on|off> [--check]  (on = reboot, off = power off)"; }
+TERM_WAIT_SECS=10
 
-action=
-check=0
-for arg in "$@"; do
-  case $arg in
-    on) action=reboot ;;
-    off) action=poweroff ;;
-    --check) check=1 ;;
-    -h|--help) usage; exit 0 ;;
-    *) usage >&2; exit 2 ;;
-  esac
-done
-[[ -n $action ]] || { usage >&2; exit 2; }
+usage() { echo "usage: cycle <on|off> [--check | --graceful]  (on = reboot, off = power off)"; }
 
-others=$(ps -eo pid,tty,stat,comm --no-headers |
-  awk -v me="$$" '
-    $1 != me && $2 ~ /^pts\// && $3 ~ /\+/ && $4 !~ /^(zsh|bash|fish|sh|ps|awk|sudo)$/ {
-      if (!($2 in first)) { first[$2] = $4; order[++n] = $2 }
-      count[$2]++
+# Process groups holding this script and its ancestors (a Claude session or
+# wrapper running cycle) are never signaled.
+own_pgids() {
+  local pid=$$ pgid
+  while (( pid > 1 )); do
+    pgid=$(ps -o pgid= -p "$pid" | tr -d ' ')
+    [[ -n $pgid ]] && echo "$pgid"
+    pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
+    [[ -n $pid ]] || break
+  done
+}
+
+# One line per foreign foreground group: "<pgid> <tty> <leader> <extra-procs>"
+foreground_groups() {
+  local skip
+  skip=$(own_pgids | tr '\n' ' ')
+  ps -eo pid,tty,stat,pgid,comm --no-headers | awk -v skip="$skip" '
+    BEGIN { n = split(skip, s, " "); for (i = 1; i <= n; i++) ignore[s[i]] = 1 }
+    $2 ~ /^pts\// && $3 ~ /\+/ && $5 !~ /^(zsh|bash|fish|sh|ps|awk|sudo)$/ && !($4 in ignore) {
+      if (!($4 in tty)) { tty[$4] = $2; order[++m] = $4 }
+      if ($1 == $4) leader[$4] = $5; else if (!($4 in fallback)) fallback[$4] = $5
+      count[$4]++
     }
-    END { for (i = 1; i <= n; i++) printf "  %s  %s (+%d more)\n", order[i], first[order[i]], count[order[i]] - 1 }')
+    END {
+      for (i = 1; i <= m; i++) {
+        g = order[i]
+        printf "%s %s %s %d\n", g, tty[g], (g in leader) ? leader[g] : fallback[g], count[g] - 1
+      }
+    }'
+}
 
-if [[ -n $others ]]; then
-  echo "Foreground commands in other terminal tabs (each blocks shutdown):"
-  echo "$others"
-  echo "Exit them (e.g. /exit in Claude) and rerun."
-  exit 1
+show_groups() { awk '{printf "  %s  %s (+%d more)\n", $2, $3, $4}' <<<"$1"; }
+
+terminate_groups() {
+  local groups=$1 pgid
+  while read -r pgid _; do
+    kill -TERM -- "-$pgid" 2>/dev/null || true
+  done <<<"$groups"
+  local waited=0
+  while (( waited < TERM_WAIT_SECS * 2 )); do
+    [[ -z $(foreground_groups) ]] && return 0
+    sleep 0.5
+    waited=$(( waited + 1 ))
+  done
+  return 1
+}
+
+main() {
+  local action= check=0 graceful=0 arg
+  for arg in "$@"; do
+    case $arg in
+      on) action=reboot ;;
+      off) action=poweroff ;;
+      --check) check=1 ;;
+      --graceful) graceful=1 ;;
+      -h|--help) usage; exit 0 ;;
+      *) usage >&2; exit 2 ;;
+    esac
+  done
+  [[ -n $action ]] || { usage >&2; exit 2; }
+  if (( check && graceful )); then
+    echo "--check and --graceful cannot be combined" >&2
+    exit 2
+  fi
+
+  local groups
+  groups=$(foreground_groups)
+  if [[ -n $groups ]]; then
+    echo "Foreground commands in other terminal tabs (each blocks shutdown):"
+    show_groups "$groups"
+    if (( ! graceful )); then
+      echo "Exit them (e.g. /exit in Claude), or rerun with --graceful to SIGTERM them."
+      exit 1
+    fi
+
+    echo "Sending SIGTERM (waiting up to ${TERM_WAIT_SECS}s)..."
+    if ! terminate_groups "$groups"; then
+      echo "Still running after ${TERM_WAIT_SECS}s (not escalating to SIGKILL):"
+      show_groups "$(foreground_groups)"
+      exit 1
+    fi
+    echo "All other tabs are idle."
+  fi
+
+  echo "Shutdown blockers still held (one is this tab while the script runs):"
+  systemd-inhibit --list --no-pager --no-legend | awk '$NF == "block" && /shutdown/' | sed 's/^/  /' || true
+
+  if (( check )); then
+    echo "check only: no other tab is blocking; would $action."
+    exit 0
+  fi
+
+  sudo -v
+  sudo systemd-run --quiet --on-active=3s --timer-property=AccuracySec=100ms \
+    /bin/sh -c '
+      systemctl "$1" && exit 0
+      runuser -u "$2" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$3/bus" \
+        notify-send -u critical "cycle refused" \
+        "A shutdown inhibitor is still held. Run: systemd-inhibit --list"
+      exit 1' sh "$action" "$USER" "$(id -u)"
+
+  echo "${action} in 3s; leaving this tab idle."
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
 fi
-
-echo "Shutdown blockers still held (one is this tab while the script runs):"
-systemd-inhibit --list --no-pager --no-legend | awk '$NF == "block" && /shutdown/' | sed 's/^/  /' || true
-
-if (( check )); then
-  echo "check only: no other tab is blocking; would $action."
-  exit 0
-fi
-
-sudo -v
-sudo systemd-run --quiet --on-active=3s --timer-property=AccuracySec=100ms \
-  /bin/sh -c '
-    systemctl "$1" && exit 0
-    runuser -u "$2" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$3/bus" \
-      notify-send -u critical "cycle refused" \
-      "A shutdown inhibitor is still held. Run: systemd-inhibit --list"
-    exit 1' sh "$action" "$USER" "$(id -u)"
-
-echo "${action} in 3s; leaving this tab idle."
