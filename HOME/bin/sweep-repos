@@ -90,7 +90,7 @@ export PATH="${HOME}/.cargo/bin:${PATH}"
 
 DAYS=14
 ROOT="${HOME}/repos"
-TARGET_DISK="/media/saidler/intel-480gb-ssd"
+TARGET_DISK="${SWEEP_TARGET_DISK:-/media/saidler/intel-480gb-ssd}"
 DEST=""                 # relocate-targets' DEST; default ${TARGET_DISK}/cargo-target
 ENSURE_FREE=""
 MAXSIZE=""

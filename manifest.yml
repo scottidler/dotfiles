@@ -522,11 +522,15 @@ script:
     systemctl --user daemon-reload
     systemctl --user enable --now swap-watch.timer
   crontab: |
-    # Replaces the whole user crontab. relocate-targets assumes intel-480gb-ssd.
+    # Replaces the whole user crontab. relocate-targets' own default DEST is
+    # intel-480gb-ssd (desk); ripr's dedicated drive is samsung-4tb-ssd.
+    case "$(hostname -s)" in
+      ripr) reloc_dest=/media/saidler/samsung-4tb-ssd/cargo-target ;;
+      *)    reloc_dest=/media/saidler/intel-480gb-ssd/cargo-target ;;
+    esac
     {
-      primary-host && echo '0 2 * * * /home/saidler/bin/relocate-targets >> /home/saidler/.cache/relocate-targets.log 2>&1'
+      primary-host && echo "0 2 * * * /home/saidler/bin/relocate-targets --dest ${reloc_dest} >> /home/saidler/.cache/relocate-targets.log 2>&1"
       echo '*/5 * * * * /home/saidler/bin/memwatch'
-      echo '0 1 * * * /home/saidler/.cargo/bin/Kondo # Kondo-auto'
     } | crontab -
   udev-uinput: |
     # ydotool (Handy voice typing) and Vibe Typer write to /dev/uinput.
