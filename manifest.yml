@@ -1316,10 +1316,10 @@ script:
     sudo apt install ./$DEB && rm ./$DEB
   obsidian: |
     LATEST="https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest"
-    URL=$(curl -sL "$LATEST" | jq -r ".assets[] | select(.name | test(\"AppImage\")) | .browser_download_url" | grep -v arm64)
-    NAME=$(basename $URL)
+    URL=$(curl -sL "$LATEST" | jq -r ".assets[] | select(.name | test(\"amd64\\\\.deb$\")) | .browser_download_url")
+    DEB=$(basename $URL)
     wget -q $URL
-    chmod +x ./$NAME && mv ./$NAME ~/bin/obsidian
+    sudo apt install ./$DEB && rm ./$DEB
   papertrail: |
     sudo gem install papertrail
   pulse-sms: |
