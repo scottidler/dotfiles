@@ -57,6 +57,11 @@ export MISE_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/mise"
 export MISE_DATA_DIR="$MISE_HOME"
 export PATH="$MISE_HOME/bin:$PATH"
 
+# ~/.local/bin on PATH everywhere - fabric lives there, and `sb borg eval` run
+# over a non-interactive `ssh ripr.lan` shelled out to it and failed to spawn
+# (2026-10-19). The borg/cortex units set it in their own PATH; this matches them.
+export PATH="$HOME/.local/bin:$PATH"
+
 # sccache wrapper for cargo builds - otto ci / cargo build run directly by an
 # agent (not through an interactive shell) still need the compiler cache.
 # Requires sandbox.network.allowAllUnixSockets in ~/.claude/settings.json: the
