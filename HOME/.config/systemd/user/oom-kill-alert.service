@@ -1,0 +1,10 @@
+[Unit]
+Description=Push an ntfy alert naming the victim of every OOM kill
+
+[Service]
+ExecStart=%h/.local/bin/oom-kill-alert.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
