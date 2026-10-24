@@ -123,6 +123,18 @@ if hash keychain 2> /dev/null; then
         ~/.ssh/identities/home/id_ed25519)
 fi
 
+# herdr's server hands its own SSH_AUTH_SOCK to every pane and never rechecks it.
+# Started from an SSH login, that is the forwarded agent, which dies with the
+# login (lappy reboot, 2026-10-24); start it on this host's keychain agent instead.
+herdr() {
+    local keychain_env=~/.keychain/${HOST}-sh
+    if [[ -r $keychain_env ]]; then
+        (source $keychain_env > /dev/null && command herdr "$@")
+    else
+        command herdr "$@"
+    fi
+}
+
 if hash fzf 2> /dev/null; then
     [[ -f /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
     [[ -f /usr/share/fzf/key-bindings.zsh ]] && source /usr/share/fzf/key-bindings.zsh
