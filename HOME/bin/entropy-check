@@ -194,8 +194,8 @@ def main():
     if args.dir:
         dirpath = Path(args.dir).expanduser()
         for root, dirs, filenames in os.walk(dirpath):
-            # Skip hidden dirs except .secrets
-            dirs[:] = [d for d in dirs if not d.startswith(".") or d == ".secrets"]
+            # Skip hidden dirs except .env and .file
+            dirs[:] = [d for d in dirs if not d.startswith(".") or d in (".env", ".file")]
             for f in filenames:
                 files.append(Path(root) / f)
     files.extend(Path(f).expanduser() for f in args.files)

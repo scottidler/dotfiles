@@ -19,7 +19,7 @@ export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="$HOME/.config/gws/work"
 # gh persona switch, mirroring the git includeIf gitdir convention in .gitconfig
 # (tatari-tv/ = work, everything else = home). GH_TOKEN always overrides gh's
 # stored/switched account, and GH_TOKEN is ambient-exported to the work PAT
-# (see keep/.secrets/gh-token.age -> github-pat-work.age), so home must override
+# (see keep/.env/gh-token.age -> github-pat-work.age), so home must override
 # GH_TOKEN itself here, not just GH_CONFIG_DIR. Set here (not .zshrc) so bare
 # `gh` resolves correctly in non-interactive shells too.
 #
