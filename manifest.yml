@@ -522,9 +522,9 @@ script:
     systemctl --user enable --now swap-watch.timer
   crontab: |
     # Replaces the whole user crontab. relocate-targets' own default DEST is
-    # intel-480gb-ssd (desk); ripr's dedicated drive is samsung-4tb-ssd.
+    # intel-480gb-ssd (desk); ripr's dedicated drive is 4tb.
     case "$(hostname -s)" in
-      ripr) reloc_dest=/media/saidler/samsung-4tb-ssd/cargo-target ;;
+      ripr) reloc_dest=/media/saidler/4tb/cargo-target ;;
       *)    reloc_dest=/media/saidler/intel-480gb-ssd/cargo-target ;;
     esac
     {
