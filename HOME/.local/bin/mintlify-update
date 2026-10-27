@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Install the latest Mintlify Desktop AppImage using the same feed the app polls.
+# Layout: ~/.local/share/mintlify-desktop/app-<version>/squashfs-root, .desktop Exec points at it.
+set -euo pipefail
+
+root="$HOME/.local/share/mintlify-desktop"
+desktop="$HOME/.local/share/applications/mintlify-desktop.desktop"
+link="$HOME/.local/bin/mintlify-desktop"
+feed="https://desktop.mintlify.com/update/linux/x64"
+
+current=$(grep -oP 'app-\K[0-9.]+(?=/)' "$desktop" 2>/dev/null || echo 0.0.0)
+
+if pgrep -f 'mintlify-desktop/app-[0-9.]+/squashfs-root/mintlify-desktop' >/dev/null; then
+  echo "Mintlify is running; quit it first." >&2
+  exit 1
+fi
+
+body=$(curl -fsS -w '\n%{http_code}' "$feed?version=$current")
+code=${body##*$'\n'}
+if [[ $code == 204 ]]; then
+  echo "Mintlify $current is the latest."
+  exit 0
+fi
+
+json=${body%$'\n'*}
+version=$(jq -r .name <<<"$json")
+url=$(jq -r .url <<<"$json")
+dest="$root/app-$version"
+
+echo "Updating Mintlify $current -> $version"
+mkdir -p "$dest"
+curl -fL --progress-bar -o "$dest/Mintlify.AppImage" "$url"
+chmod +x "$dest/Mintlify.AppImage"
+(cd "$dest" && ./Mintlify.AppImage --appimage-extract >/dev/null)
+rm -f "$dest/Mintlify.AppImage"
+
+sed -i "s|^Exec=.*|Exec=$dest/squashfs-root/AppRun --no-sandbox %U|" "$desktop"
+ln -sfn "$dest/squashfs-root/AppRun" "$link"
+update-desktop-database "$(dirname "$desktop")" 2>/dev/null || true
+
+echo "Installed Mintlify $version."
+echo "Old versions in $root: $(ls -d "$root"/app-* | grep -v "app-$version$" | tr '\n' ' ')"
