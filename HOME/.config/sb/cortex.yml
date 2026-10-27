@@ -203,11 +203,11 @@ daemon:
 # session notes sat unfiled in inbox/ while systemd still reported the daemon
 # `active (running)`.
 embed:
-  # Dedicated inference pool size. Was 0 = "let the backend pick", which chose
-  # min(8, available_parallelism) = 8 replicas on this 32-core box, all
-  # contending for the 4-thread global rayon pool. Pinned at 2: on the scalar
-  # kernel more replicas buy nothing and only widen the contention window.
-  workers: 2
+  # Inference thread count for the resolved backend; 0 = the backend default.
+  # ripr resolves ONNX (AVX2+FMA), where 0 means 16 intra-op threads, the
+  # measured knee. The old pin of 2 was a Candle replica count and would cap
+  # ONNX at 2 threads. A Candle host reads 0 as min(8, cores) replicas.
+  workers: 0
   # Hard ceiling on chunks embedded per tick. The tick's batch-size bounds
   # NOTES (64), not chunks, and one long transcript can chunk into hundreds -
   # which is how a single tick became a two-day job with no log line between
