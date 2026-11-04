@@ -169,8 +169,8 @@ if hash clone 2>/dev/null; then
     eval "$(command clone shell-init zsh)"
 fi
 
-if hash worktree 2>/dev/null; then
-    eval "$(command worktree shell-init zsh)"
+if hash wt 2>/dev/null; then
+    eval "$(command wt config shell init zsh)"
 fi
 
 if [ -f $HOME/.cargo/env ]; then

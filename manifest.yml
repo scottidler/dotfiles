@@ -334,6 +334,7 @@ cargo:
   - tealdeer
   - tokei
   - tree-sitter-cli
+  - worktrunk
   - ytop
   - zoxide
 
@@ -363,7 +364,6 @@ github:
     - ls-stale-branches
     - ls-stale-prs
     - reposlug
-    - worktree
   scottidler/kat:
     cargo:
     - ./
@@ -506,7 +506,7 @@ script:
     #
     # Also relies on sweep-repos being worktree-aware (fixed same day): it used
     # to enumerate only <root>/<org>/<repo>/Cargo.toml, missing every repo
-    # managed by the `worktree` CLI's bare+worktree layout entirely.
+    # managed in a bare+worktree layout entirely.
     mkdir -p ~/.config/systemd/user
     systemctl --user daemon-reload
     systemctl --user enable --now sweep-repos-watchdog.service

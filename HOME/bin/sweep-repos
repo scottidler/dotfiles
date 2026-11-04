@@ -238,7 +238,7 @@ is_relocated() {
 
 # Enumerate every repo-root Cargo.toml under ROOT.
 # Plain repos: <root>/<org>/<repo>/Cargo.toml (exactly 3 dirs deep).
-# Worktree-managed repos (the `worktree` CLI's bare+worktree layout, e.g.
+# Worktree-managed repos (the bare+worktree layout, e.g.
 # second-brain, marquee): <root>/<org>/<repo>/.bare marks the container, and
 # each worktree (main, a feature branch, ...) has its own Cargo.toml, but NOT
 # necessarily one directory level down -- worktree paths are whatever git
