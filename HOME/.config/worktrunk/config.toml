@@ -1,0 +1,42 @@
+# worktrunk (wt) user config. Linked into ~/.config/worktrunk by manifest.
+
+# Flat repos: worktrees live inside the repo's own footprint, not as siblings.
+# ~/repos/<org>/<repo>/.worktrees/<branch>. `.worktrees/` is in the global git
+# ignore (HOME/.config/git/ignore). Stays under ~/repos/<org>/, so the
+# includeIf "gitdir:~/repos/tatari-tv/" persona rule still fires.
+worktree-path = "{{ repo_path }}/.worktrees/{{ branch | sanitize }}"
+
+# Bare containers (<repo>/.bare + one dir per branch). repo_path is the .bare
+# dir, so `../<branch>` lands the worktree beside .bare, inside the container.
+# One entry per container; no new ones are created now that the worktree CLI
+# (init/migrate/flatten) is retired.
+
+[projects."github.com/scottidler/github-actions"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/scottidler/ralph-wiggum-loop"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/scottidler/loopr"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/nvidia/skillspector"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/yorkeccak/drata-cli"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/qdrant/qdrant"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/okta/okta-cli-client"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/leonxlnx/taste-skill"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/tatari-tv/throwaway"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+
+[projects."github.com/tatari-tv/pr-metrics"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
