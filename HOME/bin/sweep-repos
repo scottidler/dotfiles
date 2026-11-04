@@ -243,9 +243,9 @@ is_relocated() {
 # each worktree (main, a feature branch, ...) has its own Cargo.toml, but NOT
 # necessarily one directory level down -- worktree paths are whatever git
 # recorded them as, so we ask git itself (`worktree list --porcelain` against
-# the .bare gitdir) instead of guessing a fixed depth. This is the ground
-# truth the `worktree` CLI itself relies on, so it can't drift out of sync
-# with however worktrees actually get created or moved.
+# the .bare gitdir) instead of guessing a fixed depth. Git is the ground
+# truth, so this can't drift out of sync with however worktrees actually get
+# created or moved.
 #
 # BUG FIXED 2026-07-05: the plain -maxdepth 3 find never saw worktree repos at
 # all, so second-brain and marquee (146GiB combined, ~45% of the SSD) were
