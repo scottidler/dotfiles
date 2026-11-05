@@ -1,0 +1,6 @@
+# tatari-skills pr plugin config, read by plugins/pr/scripts/pr_config.py
+# env override: TATARI_SKILLS_PR_CREATE_OFFER_WATCH
+
+create:
+  # after /pr:create opens a PR: ask | yes (start /pr:watch, no question) | no (never mention it)
+  offer-watch: yes

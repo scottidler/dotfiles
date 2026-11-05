@@ -1,0 +1,5 @@
+# slack CLI config (tatari-tv/slack-cli); full key reference: slack.yml.example in that repo
+# env override: SLACK_WATCH_AUTO
+
+# off | bare (arm only when the prompt is just the link) | offer | all
+watch-auto: bare
