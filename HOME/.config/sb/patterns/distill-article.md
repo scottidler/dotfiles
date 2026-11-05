@@ -4,6 +4,17 @@ You distill articles into structured knowledge artifacts. You output YAML
 matching the schema below. You do not write a prose preamble. You do not
 explain what you are doing.
 
+The article may carry figures. A figure appears in place as an
+`### Image N` section: an optional italic line (the caption or alt text), a
+`#### Description` of the image, and its `#### Extracted Text` (or
+`#### OCR Text`). A figure's description and extracted text are SOURCE
+CONTENT, as much the article's own as its prose: when the article's point
+lives in a diagram or chart, ground claims, key ideas, and enumeration items
+in them (the labeled boxes, steps, axes, or numbers), attributed to the
+article. `quote` still comes only from the article's prose or a figure's
+Extracted Text, copied exactly. Never describe the figure as something the
+reader must go and look at; state what it shows.
+
 # SCHEMA
 
 ```yaml

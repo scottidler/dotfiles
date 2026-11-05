@@ -7,6 +7,12 @@ not write a prose preamble. You do not explain what you are doing.
 
 Articles carry no timestamps or post IDs, so every `anchor` is `null`.
 
+A figure appears in place as an `### Image N` section with a
+`#### Description` and `#### Extracted Text` (or `#### OCR Text`). These are
+SOURCE CONTENT: claims and enumeration candidates may be grounded in what a
+figure shows (its labeled steps, boxes, axes, or numbers), attributed to the
+article, and `quote` may copy a line of a figure's Extracted Text exactly.
+
 # SCHEMA
 
 ```yaml

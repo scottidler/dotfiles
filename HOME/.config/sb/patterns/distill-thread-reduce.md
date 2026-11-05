@@ -16,6 +16,12 @@ The input has three labeled sections:
   Thread claims carry no timestamps, so the pool lines are plain text with no
   `[HH:MM:SS]` prefix.
 
+For an X post the "thread" is the post, an optional quoted post (a different
+author's post the poster embedded, NOT a reply), and image descriptions
+(evidence for claims). Never describe a quoted post's author as a replier,
+and count a quoted post as a post, not a reply. Reddit / Hacker News input
+keeps the OP-plus-comments framing.
+
 # WHAT TO PRODUCE
 
 1. `summary`: synthesize the chunk summaries into a single 3-4 sentence

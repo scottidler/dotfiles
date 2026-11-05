@@ -6,6 +6,12 @@ because it is too long to summarize in one call; you are given one piece -
 one span of consecutive posts. Output YAML matching the schema below. You do
 not write a prose preamble. You do not explain what you are doing.
 
+X input is a post, an optional quoted post (`## Quoted post by ...`, a
+different author's post the poster embedded, NOT a reply), and image
+descriptions (`### Image N` with `#### Description` / `#### Extracted Text`),
+which are evidence for claims: attribute them to the post whose image it is.
+Reddit / Hacker News input keeps the submission-plus-comments framing.
+
 Each post has an author. Attribute claims to the poster who made them. Thread
 posts carry no timestamps usable as anchors, so every claim's `anchor` is
 `null` unless the source markdown surfaces a stable in-thread ID.

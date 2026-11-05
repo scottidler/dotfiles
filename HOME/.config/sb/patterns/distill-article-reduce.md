@@ -21,6 +21,11 @@ The input has labeled sections:
   many items the article declares it covers, when any chunk saw such a
   statement. This section is absent when no chunk found candidates.
 
+Chunk claims may be grounded in a figure's description or extracted text
+(`### Image N` sections in the source). Treat those claims as source content
+like any other: keep the ones that carry the article's point, and let the
+summary and key ideas reflect what the figures show.
+
 # WHAT TO PRODUCE
 
 1. `summary`: synthesize the chunk summaries into a single 3-4 sentence
