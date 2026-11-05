@@ -187,6 +187,8 @@ daemon:
     state: {}
     intel:
       enable: true
+    journal:
+      enable: true
 
 # Embedding generation (cortex is the only writer to note_embeddings).
 #
