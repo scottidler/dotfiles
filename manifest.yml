@@ -520,6 +520,14 @@ script:
     # Unit and timer come in via link:; the timer was enabled by hand before.
     systemctl --user daemon-reload
     systemctl --user enable --now swap-watch.timer
+  thread-watch: |
+    # 1s sampler of threads, forks/s, pids/memory cgroup events and PSI, with a
+    # process snapshot on spikes. Added after prek aborted with "failed to spawn
+    # thread: EAGAIN" on 2026-11-05 05:13:03 and atop's 10-minute samples could
+    # not show why. Script and unit come in via link:. Logs and snapshots land in
+    # ~/.local/state/thread-watch/ (size-capped).
+    systemctl --user daemon-reload
+    systemctl --user enable --now thread-watch.service
   crontab: |
     # Replaces the whole user crontab. relocate-targets' own default DEST is
     # intel-480gb-ssd (desk); ripr's dedicated drive is 4tb.

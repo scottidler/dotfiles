@@ -1,0 +1,12 @@
+[Unit]
+Description=thread-watch: 1s thread/fork/memory sampler with spike snapshots
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/.local/bin/thread-watch
+Nice=19
+CPUSchedulingPolicy=idle
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

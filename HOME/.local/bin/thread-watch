@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""thread-watch: 1s sampler for thread/fork/memory pressure, with spike snapshots.
+
+Written to catch the intermittent "failed to spawn thread: EAGAIN" abort seen in
+prek on 2026-11-05 05:13:03, which atop's 10-minute samples could not resolve.
+
+One long-running process: files are re-read each tick, nothing is forked per sample.
+Reads /proc/<pid>/stat and /proc/<pid>/cmdline only, never environ.
+"""
+import os
+import sys
+import time
+from collections import Counter
+
+STATE_DIR = os.path.expanduser("~/.local/state/thread-watch")
+SAMPLES = os.path.join(STATE_DIR, "samples.log")
+SNAP_DIR = os.path.join(STATE_DIR, "snapshots")
+USER_SLICE = "/sys/fs/cgroup/user.slice/user-%d.slice" % os.getuid()
+
+MAX_LOG_BYTES = 50 * 1024 * 1024
+MAX_SNAPSHOTS = 200
+SNAPSHOT_MIN_GAP_S = 30
+
+TRIGGER_FORKS_PER_S = 500
+TRIGGER_THREADS = 20000
+TRIGGER_MEM_AVAIL_KB = 4 * 1024 * 1024
+
+HEADER = "ts,threads,procs_running,forks_per_s,pids_current,pids_max_events,mem_avail_kb,psi_mem_some10,psi_mem_full10,psi_cpu_some10,mem_max_events,mem_oom_events,trigger"
+
+
+def read(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def events_counter(path, key):
+    for line in read(path).splitlines():
+        k, _, v = line.partition(" ")
+        if k == key:
+            return int(v)
+    return -1
+
+
+def psi_avg10(path, kind):
+    for line in read(path).splitlines():
+        if line.startswith(kind + " "):
+            for tok in line.split():
+                if tok.startswith("avg10="):
+                    return tok[6:]
+    return ""
+
+
+def mem_available_kb():
+    for line in read("/proc/meminfo").splitlines():
+        if line.startswith("MemAvailable:"):
+            return int(line.split()[1])
+    return -1
+
+
+def forks_total():
+    for line in read("/proc/stat").splitlines():
+        if line.startswith("processes "):
+            return int(line.split()[1])
+    return -1
+
+
+def rotate_if_needed():
+    try:
+        if os.path.getsize(SAMPLES) > MAX_LOG_BYTES:
+            os.replace(SAMPLES, SAMPLES + ".1")
+    except OSError:
+        pass
+
+
+def proc_table():
+    """pid -> (comm, ppid, nthreads) from /proc/<pid>/stat."""
+    table = {}
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        raw = read("/proc/%s/stat" % name)
+        if not raw:
+            continue
+        rp = raw.rfind(")")
+        comm = raw[raw.find("(") + 1 : rp]
+        rest = raw[rp + 2 :].split()
+        try:
+            table[int(name)] = (comm, int(rest[1]), int(rest[17]))
+        except (IndexError, ValueError):
+            continue
+    return table
+
+
+def write_snapshot(ts, reason, sample_line):
+    os.makedirs(SNAP_DIR, exist_ok=True)
+    existing = sorted(os.listdir(SNAP_DIR))
+    while len(existing) >= MAX_SNAPSHOTS:
+        os.remove(os.path.join(SNAP_DIR, existing.pop(0)))
+    table = proc_table()
+    by_comm_procs = Counter()
+    by_comm_threads = Counter()
+    children_of = Counter()
+    for pid, (comm, ppid, nthr) in table.items():
+        by_comm_procs[comm] += 1
+        by_comm_threads[comm] += nthr
+        children_of[ppid] += 1
+    out = ["reason: %s" % reason, "sample: %s" % sample_line, "header: %s" % HEADER, ""]
+    out.append("== top 30 command names by thread count (comm, procs, threads)")
+    for comm, nthr in by_comm_threads.most_common(30):
+        out.append("%8d threads %8d procs  %s" % (nthr, by_comm_procs[comm], comm))
+    out.append("")
+    out.append("== top 20 parents by live child count (ppid, children, parent comm, parent cmdline)")
+    for ppid, n in children_of.most_common(20):
+        pcomm = table.get(ppid, ("?", 0, 0))[0]
+        cmd = read("/proc/%d/cmdline" % ppid).replace("\0", " ").strip()[:200]
+        out.append("%8d children  ppid=%d  %s  %s" % (n, ppid, pcomm, cmd))
+    out.append("")
+    out.append("== top 15 single processes by thread count (pid, threads, comm, cmdline)")
+    for pid, (comm, ppid, nthr) in sorted(table.items(), key=lambda kv: -kv[1][2])[:15]:
+        cmd = read("/proc/%d/cmdline" % pid).replace("\0", " ").strip()[:200]
+        out.append("%8d threads  pid=%d  %s  %s" % (nthr, pid, comm, cmd))
+    path = os.path.join(SNAP_DIR, "%s.txt" % time.strftime("%Y%m%d-%H%M%S", time.localtime(ts)))
+    with open(path, "w") as f:
+        f.write("\n".join(out) + "\n")
+
+
+def main():
+    os.makedirs(STATE_DIR, exist_ok=True)
+    if not os.path.exists(SAMPLES) or os.path.getsize(SAMPLES) == 0:
+        with open(SAMPLES, "a") as f:
+            f.write(HEADER + "\n")
+    log = open(SAMPLES, "a", buffering=1)
+    prev_forks = forks_total()
+    prev_pids_max = events_counter(USER_SLICE + "/pids.events", "max")
+    prev_mem_max = events_counter(USER_SLICE + "/memory.events", "max")
+    prev_oom = events_counter(USER_SLICE + "/memory.events", "oom")
+    last_snapshot = 0.0
+    tick = 0
+    next_t = time.monotonic()
+    while True:
+        next_t += 1.0
+        time.sleep(max(0.0, next_t - time.monotonic()))
+        ts = time.time()
+        loadavg = read("/proc/loadavg").split()
+        running, _, total = (loadavg[3].partition("/") if len(loadavg) > 3 else ("-1", "", "-1"))
+        threads = int(total)
+        forks = forks_total()
+        forks_per_s = forks - prev_forks
+        prev_forks = forks
+        pids_cur = read(USER_SLICE + "/pids.current").strip()
+        pids_max = events_counter(USER_SLICE + "/pids.events", "max")
+        mem_max = events_counter(USER_SLICE + "/memory.events", "max")
+        oom = events_counter(USER_SLICE + "/memory.events", "oom")
+        avail = mem_available_kb()
+
+        reasons = []
+        if forks_per_s > TRIGGER_FORKS_PER_S:
+            reasons.append("forks_per_s=%d" % forks_per_s)
+        if threads > TRIGGER_THREADS:
+            reasons.append("threads=%d" % threads)
+        if 0 <= avail < TRIGGER_MEM_AVAIL_KB:
+            reasons.append("mem_avail_kb=%d" % avail)
+        if pids_max > prev_pids_max:
+            reasons.append("PIDS_CGROUP_REJECTED_FORK")
+        if mem_max > prev_mem_max or oom > prev_oom:
+            reasons.append("MEMORY_CGROUP_LIMIT_HIT")
+        prev_pids_max, prev_mem_max, prev_oom = pids_max, mem_max, oom
+
+        line = ",".join(
+            str(x)
+            for x in (
+                int(ts),
+                threads,
+                running,
+                forks_per_s,
+                pids_cur,
+                pids_max,
+                avail,
+                psi_avg10("/proc/pressure/memory", "some"),
+                psi_avg10("/proc/pressure/memory", "full"),
+                psi_avg10("/proc/pressure/cpu", "some"),
+                mem_max,
+                oom,
+                "|".join(reasons),
+            )
+        )
+        log.write(line + "\n")
+        tick += 1
+        if tick % 60 == 0:
+            rotate_if_needed()
+            if log.name and not os.path.exists(SAMPLES):
+                log = open(SAMPLES, "a", buffering=1)
+            elif os.path.getsize(SAMPLES) == 0:
+                log = open(SAMPLES, "a", buffering=1)
+                log.write(HEADER + "\n")
+        hard = any(r.startswith(("PIDS_", "MEMORY_")) for r in reasons)
+        if reasons and (hard or ts - last_snapshot >= SNAPSHOT_MIN_GAP_S):
+            write_snapshot(ts, "|".join(reasons), line)
+            last_snapshot = ts
+
+
+if __name__ == "__main__":
+    sys.exit(main())
