@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Toggle runtime power management on every AMD GPU.
+#   on:     pin the cards awake (power/control=on), so loaded VRAM stays in VRAM
+#   off:    hand them back to the kernel (power/control=auto), idle cards suspend
+#   status: show power state and VRAM/GTT use per card
+set -euo pipefail
+
+# A suspending amdgpu card evicts its VRAM into system RAM (GTT), outside any
+# cgroup memory cap. Refuse `off` while a card holds more than this.
+VRAM_BUSY_MB=1024
+
+usage() {
+  echo "usage: gpu-power on|off [--force]|status" >&2
+  exit 2
+}
+
+amd_cards() {
+  local dev
+  for dev in /sys/class/drm/card[0-9]*/device; do
+    [[ "$(cat "$dev/vendor" 2>/dev/null)" == "0x1002" && -e "$dev/mem_info_vram_used" ]] || continue
+    readlink -f "$dev"
+  done | sort -u
+}
+
+mb() { echo $(( $(cat "$1") / 1048576 )); }
+
+# amdgpu never runtime-suspends a card with a lit display, so its VRAM (the
+# desktop's) is never evicted and must not count as busy.
+drives_display() {
+  grep -qx connected "$1"/drm/card*/card*-*/status 2>/dev/null
+}
+
+status() {
+  local dev
+  for dev in $(amd_cards); do
+    printf '%s control=%-4s state=%-10s vram=%6sMB gtt=%6sMB%s\n' \
+      "$(basename "$dev")" "$(cat "$dev/power/control")" "$(cat "$dev/power/runtime_status")" \
+      "$(mb "$dev/mem_info_vram_used")" "$(mb "$dev/mem_info_gtt_used")" \
+      "$(drives_display "$dev" && echo ' display')"
+  done
+}
+
+set_control() {
+  local value=$1 dev
+  for dev in $(amd_cards); do
+    echo "$value" | sudo tee "$dev/power/control" >/dev/null
+  done
+}
+
+refuse_if_busy() {
+  local dev busy=0
+  for dev in $(amd_cards); do
+    drives_display "$dev" && continue
+    if (( $(mb "$dev/mem_info_vram_used") > VRAM_BUSY_MB )); then
+      echo "gpu-power: $(basename "$dev") holds $(mb "$dev/mem_info_vram_used")MB of VRAM" >&2
+      busy=1
+    fi
+  done
+  if (( busy )); then
+    echo "gpu-power: stop the model servers first, or pass --force (VRAM evicts into system RAM)" >&2
+    exit 1
+  fi
+}
+
+[[ $# -ge 1 ]] || usage
+case "$1" in
+  on)
+    set_control on
+    status
+    ;;
+  off)
+    [[ "${2:-}" == "--force" ]] || refuse_if_busy
+    set_control auto
+    status
+    ;;
+  status)
+    status
+    ;;
+  *)
+    usage
+    ;;
+esac
