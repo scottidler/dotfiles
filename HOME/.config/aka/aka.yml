@@ -393,6 +393,13 @@ aliases:
   oci: otto ci
 
   # ========================================
+  # PERSONAL PROJECTS - persona
+  # ========================================
+
+  p: persona
+  p2: persona2
+
+  # ========================================
   # PERSONAL PROJECTS - rkvr (rmrf-rs)
   # ========================================
 
@@ -408,12 +415,6 @@ aliases:
   # ========================================
 
   ws|whitespace: whitespace -r
-
-  # ========================================
-  # PERSONAL PROJECTS - worktree
-  # ========================================
-
-  wt: worktree
 
   # ========================================
   # PERSONAL PROJECTS - workweek / readtime
