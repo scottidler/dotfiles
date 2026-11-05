@@ -18,6 +18,7 @@ postgres = "latest"
 yarn = "1.22.22"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 "npm:web-ext" = "latest"
+uv = "latest"
 
 [settings]
 idiomatic_version_file_enable_tools = ["node"]
