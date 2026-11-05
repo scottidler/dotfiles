@@ -9,7 +9,6 @@ fetch:
   min-replies: 3
 
 heat:
-  decay-half-life-hours: 24
   max-thread-age-days: 3
 
   # Glyph knobs (Triage v3.1). velocity-weight must be materially non-zero so the
@@ -21,43 +20,67 @@ heat:
   unanswered-max-replies: 2
   unanswered-min-age-hours: 2
 
-  # Involvement damping (v3.3): a thread I have RECENTLY posted in (👤) is lower priority -
-  # I already weighed in. Strongest right after my post, fades back to none as my message
-  # is buried by later messages AND as time passes (heat *= 1 - involved-damping * msg-fade
-  # * time-fade). involved-damping is the peak cut (0 = off, 0.5 = halve, 1 = zero out).
-  involved-damping: 0.5
-  involved-decay-messages: 10
-  involved-decay-hours: 24.0
+  # Following: a thread Slack follows for me (started, commented, @'d, followed; the 🔔
+  # mark) is one Slack already tells me about. Flat drop, no rebuild: the board is for
+  # the threads Slack will not tell me about.
+  followed-drop: 0.2
+  followed-rebuild-per-msg: 0
+
+  # The autoresearch keeps (docs/design/2026-10-18-heat-autoresearch.md), measured on four
+  # weeks of this board against the threads I stepped into: 0.51 -> 0.59 on the tuning
+  # weeks, 0.49 -> 0.60 on the held-out week. Each one is a sentence about me:
+  # heat is a morning thing (half a working hour, hyperbolic tail); a thread that needs a
+  # leader is full-size, escapes the gate, and keeps its heat longer; an answered thread
+  # leaves the board.
+  atrophy-curve: hyperbolic
+  atrophy-half-life-work-hours: 0.5
+  atrophy-leader-stretch: 1.0
+  leader-weight: 45
+  leader-gate-floor: 0.3
+  resolved-drop: 1.0
 
   # Channel importance (glob-aware; exact keys beat globs; default 1.0). Weights only
-  # REORDER (zero-miss: nothing is dropped), pushing my orgs to the top of the compact view.
-  # Tiers: T1 = my orgs (SRE, Data Platform, Security-reports-to-me) + incidents/on-call;
-  # T2 = broader engineering (boss Mark, peer Directors Reno/Toussaint, primary customers);
-  # secondary = Data Science (Jena/Tim) adjacent; noise = helpdesk/ops kept visible but low.
+  # REORDER (zero-miss: nothing is dropped). Tiers by who is in the room, from persona
+  # and Slack membership (2026-10-18): my direct reports first, my teams' internal
+  # channels next, rooms shared with my manager and peers after that, then partner and
+  # ops channels, noise below 1.0. Measured with the tuned formula: ties the old weights
+  # on the tuning weeks, +7 points on the held-out week.
   channel-weights:
-    # T1 - my own orgs + active ops
-    incidents: 3.0
-    sre-sec: 2.8
-    sre*: 2.5
-    ask-security: 2.5
-    data-platform*: 2.6
-    eng-on-call: 2.2
-    platform-internal: 2.0
-    # IT - close partner team, ranks high (sre-it already covered by sre* above)
-    it-helpdesk: 1.6
-    # T2 - broader engineering / peer directors / primary customers
-    engineering-mgmt: 1.4
-    engineering: 1.3
-    tech-spec-reviews: 1.2
-    scrum-of-scrums: 1.0
-    # secondary - data-science / ML adjacent
-    ai-foundry: 0.9
-    ai-technical: 0.9
-    # lower - other teams kept visible (zero-miss) but ranked down
+    # 3.0: my direct reports
+    security-internal: 3.0
+    platform-leadership: 3.0
+    # 2.6: my teams' internal channels
+    sre-internal: 2.6
+    data-platform-internal: 2.6
+    platform-internal: 2.6
+    # 2.2 to 2.4: my manager and peer directors
+    engineering-leadership: 2.4
+    tech-staff-team: 2.2
+    engineering-mgmt: 2.2
+    # 2.0: security partner room and active ops
+    it-security: 2.0
+    incidents: 2.0
+    # 1.2 to 1.6: rooms with peers and reports among many others
+    opex-monthly: 1.6
+    sre-sec: 1.5
+    ask-security: 1.4
+    sre: 1.3
+    data-platform: 1.3
+    eng-on-call: 1.3
+    sre-it: 1.2
+    # 1.0: partner and review rooms
+    sre-solutions: 1.0
+    it-helpdesk: 1.0
+    tech-spec-reviews: 1.0
+    # below 1.0: kept visible, ranked down
+    engineering: 0.8
+    ai-foundry: 0.7
+    ai-technical: 0.7
+    enterprise-ai-onboarding-and-configuration: 0.6
     backstage: 0.6
-    cloud-costs: 0.5
+    proj-mintlify: 0.6
     staging-env: 0.5
-    opex-monthly: 0.4
+    cloud-costs: 0.5
 
   # Per-person importance, keyed by stable Slack user_id (glob-aware; default = participant-weight).
   # Raises specific people so a thread they are in floats up; additive into base, bounded by
@@ -126,3 +149,26 @@ llm:
   provider: anthropic
   model: claude-haiku-4-5-20251001
   api-key: "${ANTHROPIC_API_KEY}"
+
+# jev (TypeSafe systemone): rates each thread once, and again when it grows, for the topic
+# terms under heat. keep stores the key as ESCOTE_TYPESAFE_API_KEY; map it at launch.
+topics:
+  api-key: ${TYPESAFE_API_KEY}
+  model: jev-1.14.0
+
+display:
+  compact-rows: 20
+  # One glyph per mark slot, in render order; a key left out keeps the code default.
+  marks:
+    leader: "👔"
+    access: "🔑"
+    incident: "🚨"
+    resolved: "✅"
+    social: "🎉"
+    following: "🔔"
+    vip: "👑"
+    new: "✨"
+    spiking: "📈"
+    heated: "🌶️"
+    revived: "⏪"
+    unanswered: "❓"
