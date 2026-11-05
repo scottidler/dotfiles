@@ -4,3 +4,7 @@
 create:
   # after /pr:create opens a PR: ask | yes (start /pr:watch, no question) | no (never mention it)
   offer-watch: yes
+
+watch:
+  # comment `@coderabbitai review` when CodeRabbit stays silent: yes | no
+  nudge-coderabbit: yes
