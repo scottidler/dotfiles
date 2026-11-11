@@ -81,6 +81,8 @@ apt:
   # track /etc changes in git
   - etckeeper
   - ffmpeg
+  # screenshot capture + annotation (arrows, boxes, highlighter)
+  - flameshot
   # fast lexical analyzer generator
   - flex
   # Liberation font family (metrically compatible with Arial/Times/Courier)

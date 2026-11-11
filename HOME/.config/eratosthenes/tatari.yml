@@ -16,8 +16,8 @@ slack:
 # fresh buckets rather than yesterday's.
 triage:
   claude-binary: ~/.local/bin/claude
-  schedule: Mon..Fri 06:30:00
-  max-threads: 50
+  schedule: '*-*-* 06:30:00'
+  max-threads: 100
   body-chars: 4000
   classify-model: claude-haiku-4-5-20251001
   draft-model: claude-sonnet-5
@@ -52,6 +52,24 @@ message-filters:
   # the *@tatari.tv rule below (first match wins). Sweeps the backlog too.
   - bots:
       from: 'machine@tatari.tv'
+      label: INBOX
+      action: Bots
+
+  # Bulk automated senders the LLM adds nothing to: one known shape each, so a
+  # rule is exact. Measured 2026-11-11: these three were 254 of 485 inbox threads.
+  - file-detection:
+      from: 'security@tatari.tv'
+      subject: ['File detection*']
+      label: INBOX
+      action: Bots
+
+  - gemini-notes:
+      from: 'gemini-notes@google.com'
+      label: INBOX
+      action: Bots
+
+  - domain-registrar:
+      from: 'noreply@registrar.amazon'
       label: INBOX
       action: Bots
 
@@ -111,13 +129,16 @@ state-filters:
       labels: [Important]
       ttl: Keep
 
-  # LLM bucket: needs-reply is fully protected until answered. The engine
-  # removes llm/needs-reply once a reply goes out, at which point the
-  # thread falls through to Cull like anything else (design doc: llm/seen
-  # deliberately gets NO state-filter).
-  - keep-needs-reply:
+  # LLM bucket: needs-reply ages out like the rest, on a longer leash. It was
+  # `ttl: Keep` until 2026-11-11: none of its 92 inbox threads held a reply
+  # from Scott, so none ever read as answered and the bucket only grew (median
+  # age 48d). Star a thread to keep it.
+  - age-needs-reply:
       label: llm/needs-reply
-      ttl: Keep
+      ttl:
+        read: 3d
+        unread: 7d
+      action: Purgatory
 
   # LLM buckets below MUST precede Cull: Cull matches every INBOX thread on
   # its own TTL regardless of label, so a bucket label placed after it would
