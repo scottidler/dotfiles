@@ -46,8 +46,10 @@
 # holds, and that relocate-targets is not copying into (the shared
 # DEST/.relocate.lock). Parents go only via rmdir, so a dir holding a live
 # target cannot be removed. It fails closed: a broken enumeration, an empty
-# live set, or more than ORPHAN_MAX orphans at once deletes nothing and
-# alerts. Runs before the ladder when below the floor, once per
+# live set, or more than ORPHAN_MAX orphans at once that are also more than
+# ORPHAN_MAX_PCT of the target dirs under DEST (a bulk worktree removal is a
+# small share of DEST; broken discovery is nearly all of it) deletes nothing
+# and alerts with the counts and total size. Runs before the ladder when below the floor, once per
 # ORPHAN_INTERVAL in watch mode regardless, and before the cap in maxsize mode.
 # Design: docs/design/2026-09-27-cargo-target-orphan-sweep.md.
 #
@@ -100,6 +102,7 @@ DRY_RUN=()
 # Orphan pass knobs. Env rather than flags so the unit file sets them.
 SWEEP_ORPHANS="${SWEEP_ORPHANS:-0}"
 ORPHAN_MAX="${ORPHAN_MAX:-5}"
+ORPHAN_MAX_PCT="${ORPHAN_MAX_PCT:-25}"
 ORPHAN_INTERVAL="${ORPHAN_INTERVAL:-86400}"
 
 # Escalation ladder for watermark mode: gentlest (most days = fewest artifacts
@@ -157,7 +160,10 @@ Enumerates <root>/<org>/<repo>/Cargo.toml (and, for worktree-managed repos,
 Orphan pass (watermark, watch and maxsize modes; env):
   SWEEP_ORPHANS=0|1    1 enables it (default: 0, logs "orphan pass disabled")
   ORPHAN_MAX=N         more than N orphans at once aborts the pass, deleting
-                       nothing (default: 5)
+                       nothing (default: 5), unless they are at most
+                       ORPHAN_MAX_PCT of the target dirs under DEST
+  ORPHAN_MAX_PCT=P     0-100, share of DEST target dirs that may be orphans
+                       before the pass aborts (default: 25)
   ORPHAN_INTERVAL=SECS watch mode also runs it this often above the floor
                        (default: 86400)
 Removes DEST target dirs no live link owns. Needs the default --root: it
@@ -189,6 +195,7 @@ DEST="${DEST:-${TARGET_DISK}/cargo-target}"
 # No leading zero: bash arithmetic reads 010 as octal, and 08 is an error that
 # turns the breaker's `if` false and falls through to the rm.
 [[ "${ORPHAN_MAX}" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "sweep-repos: ORPHAN_MAX must be a whole number (no leading zero), got: ${ORPHAN_MAX}" >&2; exit 2; }
+[[ "${ORPHAN_MAX_PCT}" =~ ^(0|[1-9][0-9]?|100)$ ]] || { echo "sweep-repos: ORPHAN_MAX_PCT must be 0-100 (no leading zero), got: ${ORPHAN_MAX_PCT}" >&2; exit 2; }
 [[ "${ORPHAN_INTERVAL}" =~ ^(0|[1-9][0-9]*)$ ]] || { echo "sweep-repos: ORPHAN_INTERVAL must be whole seconds (no leading zero), got: ${ORPHAN_INTERVAL}" >&2; exit 2; }
 
 # Best-effort desktop toast. Works from cron by pointing at the user's session
@@ -377,6 +384,8 @@ LAST_LOW_NOTIFY=0
 # The orphan pass keeps its own limiter: every floor-restored path resets
 # LAST_LOW_NOTIFY to 0, which would unthrottle a repeating orphan abort.
 LAST_ORPHAN_NOTIFY=0
+LAST_ORPHAN_WHY=""
+ORPHAN_NOTIFY_INTERVAL=86400
 # Advances only when a pass completes (or is configured off), so a lock-held
 # skip retries next tick and each restart makes the pass due again.
 LAST_ORPHAN_RUN=0
@@ -393,9 +402,12 @@ orphan_abort() {
   local why="$1" now
   echo "sweep-repos: ERROR orphan pass aborted: ${why}" >&2
   now="$(date +%s)"
-  if (( now - LAST_ORPHAN_NOTIFY >= NOTIFY_INTERVAL )); then
+  # A breaker that stays tripped re-runs every watch tick while the disk is
+  # below the floor (680 toasts in 6h, 2026-11-10). Toast on a new reason, or
+  # once a day for the same one.
+  if [[ "${why}" != "${LAST_ORPHAN_WHY}" ]] || (( now - LAST_ORPHAN_NOTIFY >= ORPHAN_NOTIFY_INTERVAL )); then
     toast critical "sweep-repos: orphan pass aborted" "${why}"
-    LAST_ORPHAN_NOTIFY="${now}"
+    LAST_ORPHAN_NOTIFY="${now}"; LAST_ORPHAN_WHY="${why}"
   fi
   return 1
 }
@@ -519,13 +531,17 @@ orphan_pass() {
     orphans+=("${c}"); orphan_fds+=("${fds}")
   done
 
-  # Breaker: this many at once means discovery broke, not that leaks piled up.
-  if (( ${#orphans[@]} > ORPHAN_MAX )); then
+  # Breaker: a large count that is also a large share of DEST means discovery
+  # broke. A large count that is a small share is a bulk worktree removal.
+  if (( ${#orphans[@]} > ORPHAN_MAX && ${#orphans[@]} * 100 > ORPHAN_MAX_PCT * ${#cands[@]} )); then
+    local total=0 pct=$(( ${#orphans[@]} * 100 / ${#cands[@]} ))
     for i in "${!orphans[@]}"; do
       echo "sweep-repos:   would-be orphan ${orphans[${i}]}" >&2
+      bytes="$(du -sB1 -- "${orphans[${i}]}" 2>/dev/null | cut -f1)" || bytes=0
+      total=$((total + ${bytes:-0}))
       close_fds "${orphan_fds[${i}]}"
     done
-    orphan_abort "${#orphans[@]} orphans > ORPHAN_MAX=${ORPHAN_MAX}; nothing removed. If they are legit (worktrees removed at once): SWEEP_ORPHANS=1 ORPHAN_MAX=${#orphans[@]} ~/bin/sweep-repos --maxsize 1000GB"
+    orphan_abort "${#orphans[@]} of ${#cands[@]} target dirs (${pct}%, $(numfmt --to=iec "${total}")) are orphans, over ORPHAN_MAX=${ORPHAN_MAX} and ORPHAN_MAX_PCT=${ORPHAN_MAX_PCT}; nothing removed. Live set: links=${#links[@]} live=${#live[@]} dangling=${dangling}. If legit: SWEEP_ORPHANS=1 ORPHAN_MAX=${#orphans[@]} ~/bin/sweep-repos --maxsize 1000GB"
     return 1
   fi
 

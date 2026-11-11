@@ -24,7 +24,7 @@ SR="$(realpath "${SWEEP_REPOS:-${HERE}/../HOME/bin/sweep-repos}")"
 if [ -z "${SR_TEST_IN_NS:-}" ]; then
   exec unshare -rm env SR_TEST_IN_NS=1 SWEEP_REPOS="${SR}" bash "$0" "$@"
 fi
-unset SWEEP_ORPHANS ORPHAN_MAX ORPHAN_INTERVAL
+unset SWEEP_ORPHANS ORPHAN_MAX ORPHAN_MAX_PCT ORPHAN_INTERVAL
 
 pass=0
 fail=0
@@ -302,7 +302,8 @@ fresh
 live o/r
 for i in 1 2 3 4 5 6; do orphan "o/g$i"; done
 orphans ORPHAN_MAX=5; rc=$?
-eq 'breaker: 6 > ORPHAN_MAX=5 aborts' 1 "$(logged 'ERROR orphan pass aborted: 6 orphans > ORPHAN_MAX=5')"
+eq 'breaker: 6 of 7 (85%) over both caps aborts' 1 "$(logged 'ERROR orphan pass aborted: 6 of 7 target dirs (85%')"
+eq 'breaker: toast carries the live-set counts' 1 "$(grep -c 'Live set: links=1 live=1 dangling=0' "$C/toasts" 2>/dev/null)"
 eq 'breaker: zero removals' 7 "$(targets | wc -w)"
 eq 'breaker: toast names the override' 1 "$(grep -c 'ORPHAN_MAX=6 ~/bin/sweep-repos --maxsize 1000GB' "$C/toasts" 2>/dev/null)"
 orphans ORPHAN_MAX=08; rc=$?
@@ -316,6 +317,31 @@ eq 'a leading-zero ORPHAN_INTERVAL exits 2' 2 "$rc"
 eq 'leading-zero ORPHAN_INTERVAL: zero removals' 7 "$(targets | wc -w)"
 orphans ORPHAN_MAX=6
 eq 'breaker: ORPHAN_MAX=6 removes all six' 'o/r/target ' "$(targets)"
+
+echo "=== breaker: bulk removal that is a small share of DEST ==="
+fresh
+for i in $(seq 30); do live "o/l$i"; done
+for i in 1 2 3 4 5 6; do orphan "o/g$i"; done
+orphans ORPHAN_MAX=5; rc=$?
+eq 'share: 6 of 36 (16%) under ORPHAN_MAX_PCT=25 removes all six' 30 "$(targets | wc -w)"
+eq 'share: no abort' 0 "$(logged 'ERROR orphan pass aborted')"
+fresh
+for i in $(seq 30); do live "o/l$i"; done
+for i in 1 2 3 4 5 6; do orphan "o/g$i"; done
+orphans ORPHAN_MAX=5 ORPHAN_MAX_PCT=10; rc=$?
+eq 'share: 16% over ORPHAN_MAX_PCT=10 aborts' 1 "$(logged 'ERROR orphan pass aborted: 6 of 36 target dirs (16%')"
+eq 'share: zero removals' 36 "$(targets | wc -w)"
+orphans ORPHAN_MAX_PCT=101; rc=$?
+eq 'ORPHAN_MAX_PCT=101 exits 2' 2 "$rc"
+orphans ORPHAN_MAX_PCT=05; rc=$?
+eq 'ORPHAN_MAX_PCT=05 exits 2' 2 "$rc"
+
+echo "=== a repeating abort toasts once ==="
+fresh
+orphan o/gone
+SR_TIMEOUT=3.5 run "" SWEEP_ORPHANS=1 ORPHAN_INTERVAL=0 -- --ensure-free 0 --watch 1
+eq 'repeat abort: the pass aborted on several ticks' yes "$([ "$(logged 'ERROR orphan pass aborted')" -ge 2 ] && echo yes || echo no)"
+eq 'repeat abort: one toast' 1 "$(grep -c 'orphan pass aborted' "$C/toasts" 2>/dev/null)"
 
 echo "=== a .cargo-lock held by a build ==="
 fresh
