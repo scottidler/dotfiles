@@ -343,6 +343,12 @@ SR_TIMEOUT=3.5 run "" SWEEP_ORPHANS=1 ORPHAN_INTERVAL=0 -- --ensure-free 0 --wat
 eq 'repeat abort: the pass aborted on several ticks' yes "$([ "$(logged 'ERROR orphan pass aborted')" -ge 2 ] && echo yes || echo no)"
 eq 'repeat abort: one toast' 1 "$(grep -c 'orphan pass aborted' "$C/toasts" 2>/dev/null)"
 
+echo "=== a still-low disk toasts once ==="
+fresh
+SR_TIMEOUT=3.5 run "" -- --ensure-free 999999 --watch 1
+eq 'disk low: the check ran on several ticks' yes "$([ "$(logged 'still below floor')" -ge 2 ] && echo yes || echo no)"
+eq 'disk low: one toast' 1 "$(grep -c 'disk still low' "$C/toasts" 2>/dev/null)"
+
 echo "=== a .cargo-lock held by a build ==="
 fresh
 live o/r

@@ -384,8 +384,9 @@ LAST_LOW_NOTIFY=0
 # The orphan pass keeps its own limiter: every floor-restored path resets
 # LAST_LOW_NOTIFY to 0, which would unthrottle a repeating orphan abort.
 LAST_ORPHAN_NOTIFY=0
-LAST_ORPHAN_WHY=""
+LAST_ORPHAN_KIND=""
 ORPHAN_NOTIFY_INTERVAL=86400
+LOW_NOTIFY_INTERVAL=86400
 # Advances only when a pass completes (or is configured off), so a lock-held
 # skip retries next tick and each restart makes the pass due again.
 LAST_ORPHAN_RUN=0
@@ -399,15 +400,16 @@ dev_of() {
 }
 
 orphan_abort() {
-  local why="$1" now
+  local kind="$1" why="$2" now
   echo "sweep-repos: ERROR orphan pass aborted: ${why}" >&2
   now="$(date +%s)"
   # A breaker that stays tripped re-runs every watch tick while the disk is
-  # below the floor (680 toasts in 6h, 2026-11-10). Toast on a new reason, or
-  # once a day for the same one.
-  if [[ "${why}" != "${LAST_ORPHAN_WHY}" ]] || (( now - LAST_ORPHAN_NOTIFY >= ORPHAN_NOTIFY_INTERVAL )); then
+  # below the floor (680 toasts in 6h, 2026-11-10). Toast on a new kind of
+  # abort, or once a day for the same kind. The kind, not the text: the text
+  # carries counts that drift between ticks.
+  if [[ "${kind}" != "${LAST_ORPHAN_KIND}" ]] || (( now - LAST_ORPHAN_NOTIFY >= ORPHAN_NOTIFY_INTERVAL )); then
     toast critical "sweep-repos: orphan pass aborted" "${why}"
-    LAST_ORPHAN_NOTIFY="${now}"; LAST_ORPHAN_WHY="${why}"
+    LAST_ORPHAN_NOTIFY="${now}"; LAST_ORPHAN_KIND="${kind}"
   fi
   return 1
 }
@@ -421,7 +423,7 @@ require_dest_mounted() {
   dest_dev="$(dev_of "${DEST}")"
   repo_dev="$(dev_of "${ROOT}")"
   if [[ "${dest_dev}" == "?" || "${dest_dev}" == "${repo_dev}" ]]; then
-    orphan_abort "${DEST} is on the same filesystem as ${ROOT} (dedicated drive not mounted?)"
+    orphan_abort samefs "${DEST} is on the same filesystem as ${ROOT} (dedicated drive not mounted?)"
     return 1
   fi
 }
@@ -477,13 +479,13 @@ orphan_pass() {
   # Live set: every repo's target link from the enumeration the ladder uses,
   # plus an fd scan for links it cannot see (--repo mode, nested layouts).
   mapfile -d '' manifests < <(list_manifests)
-  if ! wait $!; then orphan_abort "repo enumeration under ${ROOT} failed (see above)"; return 1; fi
+  if ! wait $!; then orphan_abort enumeration "repo enumeration under ${ROOT} failed (see above)"; return 1; fi
   for m in "${manifests[@]}"; do
     l="$(dirname "${m}")/target"
     if [[ -e "${l}" || -L "${l}" ]]; then links["$(realpath -ms -- "${l}")"]=1; fi
   done
   mapfile -d '' found < <(fd -HI -0 -t l '^target$' --max-depth 6 "${ROOT}")
-  if ! wait $!; then orphan_abort "fd scan of ${ROOT} for target links failed"; return 1; fi
+  if ! wait $!; then orphan_abort fdscan "fd scan of ${ROOT} for target links failed"; return 1; fi
   for l in "${found[@]}"; do links["$(realpath -ms -- "${l}")"]=1; done
   # readlink -f fails on a link whose middle component is missing. Dropped,
   # not kept as "": an empty live path would prefix-match every candidate.
@@ -491,14 +493,14 @@ orphan_pass() {
     if r="$(readlink -f -- "${l}")" && [[ -n "${r}" ]]; then live["${r}"]=1; else dangling=$((dangling + 1)); fi
   done
   echo "sweep-repos: orphan pass: links=${#links[@]} live=${#live[@]} dangling=${dangling}" >&2
-  if (( ${#live[@]} == 0 )); then orphan_abort "live set is empty (no target link under ${ROOT})"; return 1; fi
+  if (( ${#live[@]} == 0 )); then orphan_abort live-empty "live set is empty (no target link under ${ROOT})"; return 1; fi
 
   # Candidates: leaf `target` dirs only. -prune stops at the first `target` on
   # every path, so one nested inside another is never listed, and a depth-1
   # DEST/target is never descended into.
   mapfile -d '' cands < <(find "${dest}" -path "${dest}/target" -prune \
     -o -type d -name target ! -path "${dest}" -prune -print0)
-  if ! wait $!; then orphan_abort "find over ${dest} failed"; return 1; fi
+  if ! wait $!; then orphan_abort find "find over ${dest} failed"; return 1; fi
 
   for c in "${cands[@]}"; do
     if why="$(orphan_keep_reason "${dest}" "${c}")"; then
@@ -541,7 +543,7 @@ orphan_pass() {
       total=$((total + ${bytes:-0}))
       close_fds "${orphan_fds[${i}]}"
     done
-    orphan_abort "${#orphans[@]} of ${#cands[@]} target dirs (${pct}%, $(numfmt --to=iec "${total}")) are orphans, over ORPHAN_MAX=${ORPHAN_MAX} and ORPHAN_MAX_PCT=${ORPHAN_MAX_PCT}; nothing removed. Live set: links=${#links[@]} live=${#live[@]} dangling=${dangling}. If legit: SWEEP_ORPHANS=1 ORPHAN_MAX=${#orphans[@]} ~/bin/sweep-repos --maxsize 1000GB"
+    orphan_abort breaker "${#orphans[@]} of ${#cands[@]} target dirs (${pct}%, $(numfmt --to=iec "${total}")) are orphans, over ORPHAN_MAX=${ORPHAN_MAX} and ORPHAN_MAX_PCT=${ORPHAN_MAX_PCT}; nothing removed. Live set: links=${#links[@]} live=${#live[@]} dangling=${dangling}. If legit: SWEEP_ORPHANS=1 ORPHAN_MAX=${#orphans[@]} ~/bin/sweep-repos --maxsize 1000GB"
     return 1
   fi
 
@@ -581,7 +583,7 @@ sweep_orphans() {
   require_dest_mounted || return 1
   local dest lock rc=0
   if ! dest="$(realpath -e -- "${DEST}")" || [[ ! -d "${dest}" ]]; then
-    orphan_abort "${DEST} is not a directory"; return 1
+    orphan_abort dest-not-dir "${DEST} is not a directory"; return 1
   fi
   # relocate-targets holds this lock for its whole run, so a copy still in
   # flight is never read as an orphan. A dry run opens it read-only and only if
@@ -590,10 +592,10 @@ sweep_orphans() {
   lock="${dest}/.relocate.lock"
   local opened=0
   if (( ${#DRY_RUN[@]} == 0 )); then
-    if ! { exec 9>>"${lock}"; } 2>/dev/null; then orphan_abort "cannot open ${lock}"; return 1; fi
+    if ! { exec 9>>"${lock}"; } 2>/dev/null; then orphan_abort lock-open "cannot open ${lock}"; return 1; fi
     opened=1
   elif [[ -e "${lock}" ]]; then
-    if ! { exec 9<"${lock}"; } 2>/dev/null; then orphan_abort "cannot open ${lock}"; return 1; fi
+    if ! { exec 9<"${lock}"; } 2>/dev/null; then orphan_abort lock-open "cannot open ${lock}"; return 1; fi
     opened=1
   fi
   if (( opened )) && ! flock -n 9; then
@@ -676,8 +678,8 @@ run_watermark() {
   echo "sweep-repos: WARN still below floor (${free}GiB < ${ENSURE_FREE}GiB) on ${TARGET_DISK} after capping every repo at ${FALLBACK_CAP} -- no swept repo was over the cap, so age/size sweeping found nothing left to reclaim.${skipped}" >&2
   local now
   now="$(date +%s)"
-  if (( now - LAST_LOW_NOTIFY >= NOTIFY_INTERVAL )); then
-    toast critical "sweep-repos: disk still low" "${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB) and no swept repo was over ${FALLBACK_CAP}, so the escalation ladder found nothing left to cap.${skipped} Needs a bigger disk, or prune worktrees/repos you're done with. (will keep alerting every $((NOTIFY_INTERVAL / 60))m until resolved)"
+  if (( now - LAST_LOW_NOTIFY >= LOW_NOTIFY_INTERVAL )); then
+    toast critical "sweep-repos: disk still low" "${TARGET_DISK} still has only ${free}GiB free (floor ${ENSURE_FREE}GiB) and no swept repo was over ${FALLBACK_CAP}, so the escalation ladder found nothing left to cap.${skipped} Needs a bigger disk, or prune worktrees/repos you're done with. (will repeat every $((LOW_NOTIFY_INTERVAL / 3600))h until resolved)"
     LAST_LOW_NOTIFY="${now}"
   fi
   return 1
