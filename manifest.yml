@@ -1161,6 +1161,16 @@ script:
     Pin-Priority: -1
     PIN
     echo "firefox: /opt install complete; snap removed + pinned out. Re-add the obsidian-borg web-ext after Firefox Sync login."
+  firefox-policies: |
+    # Firefox's built-in screenshot tool claims Ctrl+Shift+S, which belongs to
+    # the GNOME screenshot UI (gnome/gnome.ini). Merge the key so borg's
+    # ExtensionSettings entry in the same file survives. Restart Firefox after.
+    POLICY=/etc/firefox/policies/policies.json
+    sudo mkdir -p "$(dirname "$POLICY")"
+    [ -s "$POLICY" ] || echo '{"policies":{}}' | sudo tee "$POLICY" >/dev/null
+    sudo cat "$POLICY" | jq '.policies.DisableFirefoxScreenshots = true' > /tmp/firefox-policies.json
+    sudo install -m 644 /tmp/firefox-policies.json "$POLICY"
+    rm -f /tmp/firefox-policies.json
   neovim-opt: |
     # Upstream's documented Linux install (neovim INSTALL.md, "Pre-built archives"):
     # the release tarball unpacked under /opt (today /opt/nvim-linux-x86_64). Not
