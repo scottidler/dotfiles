@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Copy the newest Pixel photo or screenshot to the Wayland clipboard.
+# Syncthing mirrors the phone's DCIM/Camera and Pictures/Screenshots into
+# ~/Pictures/pixel/{pictures,screenshots}.
+#   latest-photo                 newest image from either folder
+#   latest-photo --camera        newest camera photo only
+#   latest-photo --screenshot    newest screenshot only
+#   latest-photo --path          copy the file path instead of the image
+set -euo pipefail
+
+PIXEL_DIR="${PIXEL_DIR:-$HOME/Pictures/pixel}"
+
+usage() {
+  echo "usage: latest-photo [--camera|--screenshot] [--path]" >&2
+  exit 2
+}
+
+fail() {
+  echo "latest-photo: $*" >&2
+  notify-send --urgency=critical "latest-photo" "$*" 2>/dev/null || true
+  exit 1
+}
+
+subdirs=(pictures screenshots)
+copy_path=false
+for arg in "$@"; do
+  case "$arg" in
+    --camera) subdirs=(pictures) ;;
+    --screenshot) subdirs=(screenshots) ;;
+    --path) copy_path=true ;;
+    *) usage ;;
+  esac
+done
+
+search_dirs=()
+for sub in "${subdirs[@]}"; do
+  [[ -d "$PIXEL_DIR/$sub" ]] && search_dirs+=("$PIXEL_DIR/$sub")
+done
+(( ${#search_dirs[@]} )) || fail "no folder found under $PIXEL_DIR for: ${subdirs[*]}"
+
+# Skip Syncthing's in-flight temp files and its .stversions trash, which hold
+# partial or deleted images.
+newest=$(
+  find "${search_dirs[@]}" -maxdepth 1 -type f \
+    -iregex '.*\.\(jpe?g\|png\|webp\|heic\|gif\)' \
+    ! -name '.syncthing.*' ! -name '~syncthing~*' \
+    -printf '%T@\t%p\n' \
+  | sort -rn | awk -F'\t' 'NR == 1 { print $2 }'
+)
+[[ -n "$newest" ]] || fail "no images in ${search_dirs[*]}"
+
+mime=$(file --mime-type -b "$newest")
+[[ "$mime" == image/* ]] || fail "$newest is $mime, not an image"
+
+if $copy_path; then
+  printf '%s' "$newest" | wl-copy
+  what="path"
+else
+  wl-copy --type "$mime" < "$newest"
+  what="image"
+fi
+
+taken=$(date -d "@$(stat -c %Y "$newest")" '+%a %b %-d, %-I:%M %p')
+notify-send --icon="$newest" "Copied $what: $(basename "$newest")" "Taken $taken"
+echo "$newest"
