@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Copy every recent Pixel photo or screenshot to the Wayland clipboard as a
+# file list (text/uri-list), the way a file manager copies files. A clipboard
+# holds one image, so several photos travel as files; use latest-photo for one.
+# Syncthing mirrors the phone into ~/Pictures/pixel/{pictures,screenshots}.
+#   recent-photos                  images from the last 5 minutes
+#   recent-photos --since 30s|10m|2h
+#   recent-photos --camera | --screenshot
+#   recent-photos --path           copy newline-separated paths as plain text
+set -euo pipefail
+
+PIXEL_DIR="${PIXEL_DIR:-$HOME/Pictures/pixel}"
+DEFAULT_SINCE=5m
+COPY_TIMEOUT_S=5
+
+usage() {
+  echo "usage: recent-photos [--since N[s|m|h]] [--camera|--screenshot] [--path]" >&2
+  exit 2
+}
+
+fail() {
+  echo "recent-photos: $*" >&2
+  notify-send --urgency=critical "recent-photos" "$*" 2>/dev/null || true
+  exit 1
+}
+
+to_seconds() {
+  [[ "$1" =~ ^([0-9]+)([smh]?)$ ]] || usage
+  local n="${BASH_REMATCH[1]}"
+  case "${BASH_REMATCH[2]}" in
+    s) echo "$n" ;;
+    h) echo $(( n * 3600 )) ;;
+    *) echo $(( n * 60 )) ;;
+  esac
+}
+
+subdirs=(pictures screenshots)
+copy_path=false
+since="$DEFAULT_SINCE"
+while (( $# )); do
+  case "$1" in
+    --since) [[ $# -ge 2 ]] || usage; since="$2"; shift ;;
+    --camera) subdirs=(pictures) ;;
+    --screenshot) subdirs=(screenshots) ;;
+    --path) copy_path=true ;;
+    *) usage ;;
+  esac
+  shift
+done
+window_s=$(to_seconds "$since")
+
+search_dirs=()
+for sub in "${subdirs[@]}"; do
+  [[ -d "$PIXEL_DIR/$sub" ]] && search_dirs+=("$PIXEL_DIR/$sub")
+done
+(( ${#search_dirs[@]} )) || fail "no folder found under $PIXEL_DIR for: ${subdirs[*]}"
+
+# Oldest first, so attachments land in the order the photos were taken.
+# Skip Syncthing's in-flight temp files, which hold partial images.
+cutoff=$(( $(date +%s) - window_s ))
+mapfile -t photos < <(
+  find "${search_dirs[@]}" -maxdepth 1 -type f \
+    -iregex '.*\.\(jpe?g\|png\|webp\|heic\|gif\)' \
+    ! -name '.syncthing.*' ! -name '~syncthing~*' \
+    -newermt "@$cutoff" -printf '%T@\t%p\n' \
+  | sort -n | cut -f2-
+)
+(( ${#photos[@]} )) || fail "no images in the last $since in ${search_dirs[*]}"
+
+# GNOME lacks the wlr data-control protocol, so wl-copy needs a focused
+# surface and blocks forever on a locked screen.
+if $copy_path; then
+  printf '%s\n' "${photos[@]}" | timeout "$COPY_TIMEOUT_S" wl-copy \
+    || fail "wl-copy timed out after ${COPY_TIMEOUT_S}s (screen locked?)"
+  what="paths"
+else
+  for p in "${photos[@]}"; do
+    printf 'file://%s\r\n' "$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$p")"
+  done | timeout "$COPY_TIMEOUT_S" wl-copy --type text/uri-list \
+    || fail "wl-copy timed out after ${COPY_TIMEOUT_S}s (screen locked?)"
+  what="files"
+fi
+
+fmt='+%-I:%M %p'
+first=$(date -d "@$(stat -c %Y "${photos[0]}")" "$fmt")
+last=$(date -d "@$(stat -c %Y "${photos[-1]}")" "$fmt")
+span="$first"
+[[ "$first" == "$last" ]] || span="$first to $last"
+notify-send --icon="${photos[-1]}" "Copied ${#photos[@]} $what" "Taken $span"
+printf '%s\n' "${photos[@]}"
