@@ -554,6 +554,29 @@ script:
     EOF
     sudo udevadm control --reload-rules
     sudo udevadm trigger
+  lan-route-priority: |
+    # ripr advertises 10.10.10.1/32 + 10.10.10.11/32 to Tailscale; with
+    # accept-routes on, table 52 (prio 5270) hijacked LAN replies at home and
+    # broke `ssh ltl-7007.lan` from ripr (2026-11-15). Prio 4999 sends LAN
+    # traffic out the LAN NIC when home; suppress_prefixlength 0 ignores the
+    # default route, so away from home it falls through to Tailscale.
+    sudo tee /etc/systemd/system/lan-route-priority.service >/dev/null <<'EOF'
+    [Unit]
+    Description=Home LAN (10.10.10.0/24) uses the LAN NIC when home; falls through to Tailscale when away
+    After=network-pre.target
+    Before=tailscaled.service
+
+    [Service]
+    Type=oneshot
+    RemainAfterExit=yes
+    ExecStart=/bin/sh -c 'ip rule show | grep -q "^4999:" || ip rule add to 10.10.10.0/24 lookup main suppress_prefixlength 0 priority 4999'
+    ExecStop=/sbin/ip rule del priority 4999
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now lan-route-priority.service
   user-groups: |
     # docker, nordvpn and vboxusers exist only after their packages install.
     for g in input kvm docker nordvpn vboxusers; do
