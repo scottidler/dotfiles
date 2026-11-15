@@ -115,6 +115,8 @@ apt:
   - google-chrome-stable
   # Charmbracelet tool for building shell script UIs
   - gum
+  # Helium browser (vendor apt repo, see apt-repos script)
+  - helium-bin
   # plain-text double-entry accounting tool
   - hledger
   # human-friendly HTTP client (curl alternative with readable output)
@@ -665,6 +667,18 @@ script:
     Signed-By: /usr/share/keyrings/google-chrome.gpg
     EOF
     sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+
+    # helium: key is served from the helium-linux GitHub repo, not the apt host.
+    fetch_key https://raw.githubusercontent.com/imputnet/helium-linux/main/pubkey.asc /etc/apt/keyrings/helium.asc
+    sudo tee /etc/apt/sources.list.d/helium.sources >/dev/null <<'EOF'
+    Types: deb
+    URIs: https://pkg.helium.computer/deb
+    Suites: stable
+    Components: main
+    Architectures: amd64
+    Signed-By: /etc/apt/keyrings/helium.asc
+    EOF
+    sudo rm -f /etc/apt/sources.list.d/helium.list /usr/share/keyrings/helium.gpg
 
     # ngrok publishes Debian suites only; bookworm is the vendor's documented one.
     fetch_key https://ngrok-agent.s3.amazonaws.com/ngrok.asc /etc/apt/keyrings/ngrok.asc
