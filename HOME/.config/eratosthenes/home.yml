@@ -1,0 +1,29 @@
+# Personal Gmail (scott.a.idler@gmail.com). Deterministic rules only: Gmail's own
+# categories do the sorting. No triage: and no slack: block on purpose, so the
+# single triage and digest timers keep reading tatari alone.
+# Design: eratosthenes docs/plan/2026-11-12-inbox-gate.md
+
+auth:
+  creds-path: ~/.config/eratosthenes/home   # absolute: the file moves (Phase 9)
+  callback-port: 13132        # must differ from tatari's default 13131
+
+state-filters:
+  - Starred:    { labels: [Starred],   ttl: Keep }
+  - Important:  { labels: [Important], ttl: Keep }
+  # First of the categories, so a thread mixing Personal with anything else
+  # is owned here. No action: leaves the inbox, gets no stage label.
+  - personal:
+      label: CATEGORY_PERSONAL
+      ttl: { read: 7d, unread: 30d }
+  - promotions: { label: CATEGORY_PROMOTIONS, ttl: 1d, action: Purgatory }
+  - social:     { label: CATEGORY_SOCIAL,     ttl: 1d, action: Purgatory }
+  - forums:     { label: CATEGORY_FORUMS,     ttl: 3d, action: Purgatory }
+  - updates:
+      label: CATEGORY_UPDATES
+      ttl: { read: 3d, unread: 7d }
+      action: Purgatory
+  - Cull:
+      label: INBOX
+      ttl: { read: 3d, unread: 21d }
+      action: Purgatory
+  - Purge:      { label: Purgatory, ttl: 3d, action: Oblivion }
