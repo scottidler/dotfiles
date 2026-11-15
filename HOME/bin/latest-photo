@@ -52,11 +52,16 @@ newest=$(
 mime=$(file --mime-type -b "$newest")
 [[ "$mime" == image/* ]] || fail "$newest is $mime, not an image"
 
+# GNOME lacks the wlr data-control protocol, so wl-copy needs a focused
+# surface and blocks forever on a locked screen.
+COPY_TIMEOUT_S=5
 if $copy_path; then
-  printf '%s' "$newest" | wl-copy
+  printf '%s' "$newest" | timeout "$COPY_TIMEOUT_S" wl-copy \
+    || fail "wl-copy timed out after ${COPY_TIMEOUT_S}s (screen locked?)"
   what="path"
 else
-  wl-copy --type "$mime" < "$newest"
+  timeout "$COPY_TIMEOUT_S" wl-copy --type "$mime" < "$newest" \
+    || fail "wl-copy timed out after ${COPY_TIMEOUT_S}s (screen locked?)"
   what="image"
 fi
 
