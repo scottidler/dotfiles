@@ -12,11 +12,11 @@ slack:
 # LLM triage: classify new inbox threads into the llm/* buckets the
 # state-filters below age. KEYLESS -- the call shells out to the locally
 # installed `claude` CLI, which owns its own auth, so nothing here is a
-# credential. Fires 30 minutes ahead of the digest so a digest day reads
-# fresh buckets rather than yesterday's.
+# credential. Hourly at :30, so the 07:00 digest reads fresh buckets and new
+# mail is judged within the hour.
 triage:
   claude-binary: ~/.local/bin/claude
-  schedule: '*-*-* 06:30:00'
+  schedule: '*-*-* *:30:00'
   max-threads: 100
   body-chars: 4000
   classify-model: claude-haiku-4-5-20251001
@@ -31,17 +31,25 @@ triage:
         notices, GitHub, AWS, Jira automation, CI, vendor bots) even if the
         body asks Scott to do something -- those go in fyi-work or noise.
       draft: false
+      archive: false
+      awaits-reply: true
     - name: fyi-work
       label: llm/fyi-work
+      # archive stays off: the 2026-11-14 dry run bucketed a vendor security
+      # incident notice and a GitHub org PAT approval request here.
+      archive: false
       description: work-relevant notifications -- AWS, security, CI, vendors
     - name: recruiting
       label: llm/recruiting
+      archive: true
       description: LinkedIn, recruiters, job alerts
     - name: receipts
       label: llm/receipts
+      archive: true
       description: invoices, payments, renewals, order confirmations
     - name: noise
       label: llm/noise
+      archive: true
       description: everything else -- marketing, newsletters, social
 
 max-skipped-threads: 10
