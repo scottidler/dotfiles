@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# remember: spoken reminders that land in Obsidian and carry forward in the
+# daily note until checked off or deleted.
+#
+# usage:
+#   remember          toggle: first press starts recording, second press stops,
+#                     transcribes (dictate), cleans up the wording (Groq chat),
+#                     and appends "- [ ] <text>" to the reminders note
+#   remember add TEXT append TEXT without recording
+#   remember list     print open reminders
+#
+# The daily note template lists every open reminder (Dataview), so an open
+# reminder shows up in each day's note until it is closed.
+# Not the `remind` shell function: that one schedules a timed alert with at(1).
+# env: REMEMBER_FILE  (default: vault notes/reminders.md)
+#      REMEMBER_MODEL (Groq chat model for cleanup, default: qwen/qwen3.8-27b)
+set -euo pipefail
+
+VAULT="$HOME/repos/scottidler/obsidian"
+FILE="${REMEMBER_FILE:-$VAULT/notes/reminders.md}"
+MODEL="${REMEMBER_MODEL:-qwen/qwen3.8-27b}"
+STATE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/remember"
+FIFO="$STATE/stop"
+PIDFILE="$STATE/pid"
+LOG="$HOME/.local/share/remember/remember.log"
+
+mkdir -p "$STATE" "$(dirname "$LOG")"
+
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
+note() { notify-send -a Reminders "$@"; }
+die() { log "ERROR: $*"; note -u critical "Reminder failed" "$*"; echo "remember: $*" >&2; exit 1; }
+
+load_groq_key() {
+    [[ -n "${GROQ_API_KEY:-}" ]] && return
+    # GNOME shortcuts do not inherit the login shell's secrets.
+    GROQ_API_KEY="$(manifest age decrypt "$HOME/repos/scottidler/keep/.env/groq-api-key.age")" \
+        || die "could not decrypt groq-api-key.age"
+    export GROQ_API_KEY
+}
+
+ensure_file() {
+    [[ -f "$FILE" ]] && return
+    cat > "$FILE" <<'EOF'
+---
+title: reminders
+type: reminders
+origin: authored
+tags: [reminders]
+---
+
+# reminders
+
+Open items show in every daily note until checked off or deleted.
+
+EOF
+}
+
+append() {
+    local text="$1"
+    [[ -n "${text//[[:space:]]/}" ]] || die "empty reminder, nothing saved"
+    ensure_file
+    printf -- '- [ ] %s (added %s)\n' "$text" "$(date '+%F %H:%M')" >> "$FILE"
+    log "added: $text"
+    note "Reminder saved" "$text"
+}
+
+cleanup_text() {
+    local raw="$1" today body out
+    today="$(date '+%A %F')"
+    body="$(jq -n --arg m "$MODEL" --arg t "$raw" --arg d "$today" '{
+        model: $m, temperature: 0,
+        messages: [
+          {role: "system", content: ("Today is " + $d + ". Rewrite the dictated reminder as one short imperative sentence. Apply the speaker'"'"'s self-corrections (\"no, I mean X\" means X), drop filler and false starts, keep every name and time. Turn relative dates (tomorrow, Friday, next week) into absolute dates like \"Mon 2026-11-16\". If the text is unclear or not a reminder, output it unchanged. Never refuse, explain, or add commentary. Output only the sentence.")},
+          {role: "user", content: $t}
+        ]}')"
+    out="$(curl -fsS https://api.groq.com/openai/v1/chat/completions \
+        -H "Authorization: Bearer $GROQ_API_KEY" -H 'Content-Type: application/json' \
+        -d "$body" | jq -r '.choices[0].message.content // empty')" || out=""
+    if [[ -z "$out" ]]; then
+        log "cleanup failed, keeping raw transcript"
+        printf '%s' "$raw"
+    else
+        printf '%s' "$out"
+    fi
+}
+
+start_recording() {
+    load_groq_key
+    rm -f "$FIFO"; mkfifo "$FIFO"
+    (
+        # Read-write open never blocks on a fifo; dictate's `read` waits for the stop press.
+        raw="$(dictate <> "$FIFO" 2>>"$LOG")" || { rm -f "$PIDFILE" "$FIFO"; die "dictate failed (see $LOG)"; }
+        rm -f "$PIDFILE" "$FIFO"
+        log "raw: $raw"
+        append "$(cleanup_text "$raw")"
+    ) &
+    echo $! > "$PIDFILE"
+    note "Recording reminder" "Press the key again to stop."
+}
+
+case "${1:-}" in
+    "")
+        if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+            echo > "$FIFO"
+        else
+            start_recording
+        fi ;;
+    add) shift; [[ $# -gt 0 ]] || die "usage: remember add TEXT"; append "$*" ;;
+    list) [[ -f "$FILE" ]] && grep -E '^\s*- \[ \] ' "$FILE" || true ;;
+    -h|--help) awk 'NR==1{next} /^#/{sub(/^# ?/,"");print;next}{exit}' "$0" ;;
+    *) die "unknown command: $1 (see remember --help)" ;;
+esac
