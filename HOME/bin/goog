@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# goog APP work|home: open a Google app in the right account.
+# authuser=<email> picks the account by address, not by sign-in order.
+set -euo pipefail
+
+usage() {
+    echo "usage: goog mail|cal|drive|docs|sheets|slides|transcripts work|home" >&2
+    exit 2
+}
+
+[[ $# -eq 2 ]] || usage
+
+case "$2" in
+    work) u=scott.idler@tatari.tv ;;
+    home) u=scott.a.idler@gmail.com ;;
+    *) usage ;;
+esac
+
+case "$1" in
+    mail)        url="https://mail.google.com/mail/?authuser=$u" ;;
+    cal)         url="https://calendar.google.com/calendar/r?authuser=$u" ;;
+    drive)       url="https://drive.google.com/drive/my-drive?authuser=$u" ;;
+    docs)        url="https://docs.google.com/document/?authuser=$u" ;;
+    sheets)      url="https://docs.google.com/spreadsheets/?authuser=$u" ;;
+    slides)      url="https://docs.google.com/presentation/?authuser=$u" ;;
+    transcripts) url="https://drive.google.com/drive/search?q=transcript&authuser=$u" ;;
+    *) usage ;;
+esac
+
+# Full path: GNOME shortcuts run with gsd-media-keys' PATH, which may lack /usr/local/bin.
+exec /usr/local/bin/firefox --new-tab "$url"
