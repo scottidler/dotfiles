@@ -23,7 +23,10 @@ case "$1" in
     docs)        url="https://docs.google.com/document/?authuser=$u" ;;
     sheets)      url="https://docs.google.com/spreadsheets/?authuser=$u" ;;
     slides)      url="https://docs.google.com/presentation/?authuser=$u" ;;
-    transcripts) url="https://drive.google.com/drive/search?q=transcript&authuser=$u" ;;
+    transcripts)
+        # Meet saves each meeting's transcript in a subfolder of the work "Google Meet" folder.
+        [[ $2 == work ]] || { echo "goog: transcripts exist only in the work account" >&2; exit 2; }
+        url="https://drive.google.com/drive/folders/1VJ37TOPjAbifig-79jWPt6C1npIqJnFq?authuser=$u" ;;
     *) usage ;;
 esac
 
