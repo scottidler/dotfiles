@@ -184,7 +184,7 @@ None of these are in a manifest. The release state as of 2026-10-04:
 | marquee | tatari-tv/marquee | yes, v1.23.6 |
 | sdv | tatari-tv/sdv | yes, v0.5.6 |
 | sb | scottidler/second-brain | yes, v0.15.11 |
-| bump | scottidler/bump | yes, v0.4.2 |
+| bump | tatari-tv/bump | yes, v0.4.2 |
 | shepherd | tatari-tv/shepherd | release exists, no linux-amd64 asset |
 | slack, persona, otto, pagerduty, herdr | tatari-tv/* | no release; `cargo install --path` from a clone |
 
