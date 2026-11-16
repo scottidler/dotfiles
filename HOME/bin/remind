@@ -15,6 +15,9 @@
 #      REMIND_MODEL (Groq chat model for cleanup, default: qwen/qwen3.8-27b)
 set -euo pipefail
 
+# GNOME shortcuts run with a bare PATH: no ~/bin (dictate), ~/.cargo/bin (manifest), or mise (jq).
+PATH="$HOME/bin:$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+
 VAULT="$HOME/repos/scottidler/obsidian"
 FILE="${REMIND_FILE:-$VAULT/notes/reminders.md}"
 MODEL="${REMIND_MODEL:-qwen/qwen3.8-27b}"
@@ -26,14 +29,23 @@ LOG="$HOME/.local/share/remind/remind.log"
 mkdir -p "$STATE" "$(dirname "$LOG")"
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
-note() { notify-send -a Reminders "$@"; }
+# One notification slot, replaced in place, so a burst of presses never stacks toasts.
+note() {
+    local id
+    id="$(cat "$STATE/note-id" 2>/dev/null || echo 0)"
+    notify-send -a Reminders -p -r "$id" "$@" > "$STATE/note-id.tmp" && mv "$STATE/note-id.tmp" "$STATE/note-id"
+}
 die() { log "ERROR: $*"; note -u critical "Reminder failed" "$*"; echo "remind: $*" >&2; exit 1; }
 
 load_groq_key() {
     [[ -n "${GROQ_API_KEY:-}" ]] && return
     # GNOME shortcuts do not inherit the login shell's secrets.
-    GROQ_API_KEY="$(manifest age decrypt "$HOME/repos/scottidler/keep/.env/groq-api-key.age")" \
+    local line
+    line="$(manifest age decrypt "$HOME/repos/scottidler/keep/.env/groq-api-key.age")" \
         || die "could not decrypt groq-api-key.age"
+    # The file holds a full `export GROQ_API_KEY=...` line, not the bare key.
+    line="${line#export }"; line="${line#GROQ_API_KEY=}"; line="${line//\"/}"; line="${line//\'/}"
+    GROQ_API_KEY="$line"
     export GROQ_API_KEY
 }
 
@@ -91,19 +103,60 @@ start_recording() {
         raw="$(dictate <> "$FIFO" 2>>"$LOG")" || { rm -f "$PIDFILE" "$FIFO"; die "dictate failed (see $LOG)"; }
         rm -f "$PIDFILE" "$FIFO"
         log "raw: $raw"
+        # Whisper turns silence into "Thank you." or "."; never save those.
+        local words
+        words="$(tr -cs '[:alpha:]' ' ' <<<"$raw" | wc -w)"
+        if (( words < 2 )) || grep -qiE '^[[:space:]]*(thank you|thanks for watching)[.!]?[[:space:]]*$' <<<"$raw"; then
+            log "nothing heard, not saved: $raw"
+            note "Nothing heard" "No reminder saved."
+            exit 0
+        fi
         append "$(cleanup_text "$raw")"
     ) &
     echo $! > "$PIDFILE"
-    note "Recording reminder" "Press the key again to stop."
+    note "Recording reminder" "Tap again, or release if holding, to stop."
+}
+
+ms() { date +%s%3N; }
+recording() { [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+stop_recording() { [[ -p "$FIFO" ]] && echo > "$FIFO"; }
+
+# Tap = toggle, hold = record until release. GNOME fires the shortcut again on
+# every key repeat (500 ms delay, then every 30 ms), so a hold shows up as a
+# burst of presses and the release as the burst stopping.
+press() {
+    exec 9>"$STATE/lock"
+    flock 9
+    local now prev start
+    now="$(ms)"
+    prev="$(cat "$STATE/last" 2>/dev/null || echo 0)"
+    echo "$now" > "$STATE/last"
+    if recording; then
+        start="$(cat "$STATE/start")"
+        if [[ "$(cat "$STATE/mode")" == toggle ]] && (( now - start > 700 )); then
+            stop_recording
+        fi
+        return
+    fi
+    (( now - prev < 250 )) && return   # repeat of a key still held after a stop
+    echo "$now" > "$STATE/start"
+    echo pending > "$STATE/mode"
+    start_recording
+    flock -u 9
+    (
+        sleep 0.7
+        if (( $(cat "$STATE/last") - $(cat "$STATE/start") > 400 )); then
+            echo hold > "$STATE/mode"
+            while (( $(ms) - $(cat "$STATE/last") < 250 )); do sleep 0.05; done
+            stop_recording
+        else
+            echo toggle > "$STATE/mode"
+        fi
+    ) 9>&- &
 }
 
 case "${1:-}" in
-    "")
-        if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-            echo > "$FIFO"
-        else
-            start_recording
-        fi ;;
+    "") press ;;
     add) shift; [[ $# -gt 0 ]] || die "usage: remind add TEXT"; append "$*" ;;
     list) [[ -f "$FILE" ]] && grep -E '^\s*- \[ \] ' "$FILE" || true ;;
     -h|--help) awk 'NR==1{next} /^#/{sub(/^# ?/,"");print;next}{exit}' "$0" ;;
