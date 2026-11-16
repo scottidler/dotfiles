@@ -1,34 +1,33 @@
 #!/usr/bin/env bash
-# remember: spoken reminders that land in Obsidian and carry forward in the
+# remind: spoken reminders that land in Obsidian and carry forward in the
 # daily note until checked off or deleted.
 #
 # usage:
-#   remember          toggle: first press starts recording, second press stops,
+#   remind          toggle: first press starts recording, second press stops,
 #                     transcribes (dictate), cleans up the wording (Groq chat),
 #                     and appends "- [ ] <text>" to the reminders note
-#   remember add TEXT append TEXT without recording
-#   remember list     print open reminders
+#   remind add TEXT append TEXT without recording
+#   remind list     print open reminders
 #
 # The daily note template lists every open reminder (Dataview), so an open
 # reminder shows up in each day's note until it is closed.
-# Not the `remind` shell function: that one schedules a timed alert with at(1).
-# env: REMEMBER_FILE  (default: vault notes/reminders.md)
-#      REMEMBER_MODEL (Groq chat model for cleanup, default: qwen/qwen3.8-27b)
+# env: REMIND_FILE  (default: vault notes/reminders.md)
+#      REMIND_MODEL (Groq chat model for cleanup, default: qwen/qwen3.8-27b)
 set -euo pipefail
 
 VAULT="$HOME/repos/scottidler/obsidian"
-FILE="${REMEMBER_FILE:-$VAULT/notes/reminders.md}"
-MODEL="${REMEMBER_MODEL:-qwen/qwen3.8-27b}"
-STATE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/remember"
+FILE="${REMIND_FILE:-$VAULT/notes/reminders.md}"
+MODEL="${REMIND_MODEL:-qwen/qwen3.8-27b}"
+STATE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/remind"
 FIFO="$STATE/stop"
 PIDFILE="$STATE/pid"
-LOG="$HOME/.local/share/remember/remember.log"
+LOG="$HOME/.local/share/remind/remind.log"
 
 mkdir -p "$STATE" "$(dirname "$LOG")"
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
 note() { notify-send -a Reminders "$@"; }
-die() { log "ERROR: $*"; note -u critical "Reminder failed" "$*"; echo "remember: $*" >&2; exit 1; }
+die() { log "ERROR: $*"; note -u critical "Reminder failed" "$*"; echo "remind: $*" >&2; exit 1; }
 
 load_groq_key() {
     [[ -n "${GROQ_API_KEY:-}" ]] && return
@@ -105,8 +104,8 @@ case "${1:-}" in
         else
             start_recording
         fi ;;
-    add) shift; [[ $# -gt 0 ]] || die "usage: remember add TEXT"; append "$*" ;;
+    add) shift; [[ $# -gt 0 ]] || die "usage: remind add TEXT"; append "$*" ;;
     list) [[ -f "$FILE" ]] && grep -E '^\s*- \[ \] ' "$FILE" || true ;;
     -h|--help) awk 'NR==1{next} /^#/{sub(/^# ?/,"");print;next}{exit}' "$0" ;;
-    *) die "unknown command: $1 (see remember --help)" ;;
+    *) die "unknown command: $1 (see remind --help)" ;;
 esac
