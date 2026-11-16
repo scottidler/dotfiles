@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
-# obsidian-daily: open today's daily note and bring Obsidian to the front.
+# obsidian-open: open a vault note or view and bring Obsidian to the front.
+#
+# usage: obsidian-open daily          today's daily note
+#        obsidian-open PATH           vault-relative path, e.g. home.md,
+#                                     system/views/borg-ledger.base
+#
 # GNOME shortcuts launch without an activation token, so Obsidian alone only
 # gets an "is ready" notice. The raise goes through the Activate Window By Title
 # shell extension (activate-window-by-title@lucaswerkmeister.de).
 set -euo pipefail
 
+VAULT=obsidian
 WM_CLASS=md.obsidian.Obsidian
+
+[[ $# -eq 1 ]] || { echo "usage: obsidian-open daily|PATH" >&2; exit 2; }
+
+if [[ $1 == daily ]]; then
+    uri="obsidian://daily?vault=$VAULT"
+else
+    [[ -e "$HOME/repos/scottidler/obsidian/$1" ]] || { echo "obsidian-open: no such vault path: $1" >&2; exit 2; }
+    uri="obsidian://open?vault=$VAULT&file=$(jq -rn --arg p "$1" '$p|@uri')"
+fi
 
 raise() {
     gdbus call --session --dest org.gnome.Shell \
@@ -14,13 +29,13 @@ raise() {
         2>/dev/null | grep -q true
 }
 
-xdg-open 'obsidian://daily?vault=obsidian'
+xdg-open "$uri"
 
 # A cold start takes a moment to map its window; poll for up to ~10s.
 for _ in $(seq 1 40); do
     raise && exit 0
     sleep 0.25
 done
-notify-send -a obsidian-daily "Could not raise Obsidian" \
+notify-send -a obsidian-open "Could not raise Obsidian" \
     "Is activate-window-by-title@lucaswerkmeister.de enabled? gnome-extensions info it"
 exit 1
