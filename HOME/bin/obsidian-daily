@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# obsidian-daily: open today's daily note and bring Obsidian to the front.
+# GNOME shortcuts launch without an activation token, so Obsidian alone only
+# gets an "is ready" notice. The raise goes through the Activate Window By Title
+# shell extension (activate-window-by-title@lucaswerkmeister.de).
+set -euo pipefail
+
+WM_CLASS=md.obsidian.Obsidian
+
+raise() {
+    gdbus call --session --dest org.gnome.Shell \
+        --object-path /de/lucaswerkmeister/ActivateWindowByTitle \
+        --method de.lucaswerkmeister.ActivateWindowByTitle.activateByWmClass "$WM_CLASS" \
+        2>/dev/null | grep -q true
+}
+
+xdg-open 'obsidian://daily?vault=obsidian'
+
+# A cold start takes a moment to map its window; poll for up to ~10s.
+for _ in $(seq 1 40); do
+    raise && exit 0
+    sleep 0.25
+done
+notify-send -a obsidian-daily "Could not raise Obsidian" \
+    "Is activate-window-by-title@lucaswerkmeister.de enabled? gnome-extensions info it"
+exit 1
